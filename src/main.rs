@@ -4,7 +4,6 @@ mod state;
 mod shooter;
 
 use ggez::*;
-use std::path;
 
 use crate::state::State;
 
