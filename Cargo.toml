@@ -1,0 +1,12 @@
+[package]
+name = "rust-shooter"
+version = "0.1.0"
+authors = ["Shishir Tandale <shishir@tandale.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ggez = "0.5"
+rand = "0.7.0"
+nalgebra = "0.18"
