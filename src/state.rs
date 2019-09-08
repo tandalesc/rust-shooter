@@ -10,8 +10,8 @@ use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet};
 const BULLET_COLOR: (u8,u8,u8,u8) = (200, 200, 200, 255);
 const BULLET_DAMAGE: f32 = 40.0;
 const BULLET_COOLDOWN: i16 = 20;
-const ENEMY_COLOR: (u8,u8,u8,u8) = (170, 50, 50, 255);
-const ENEMIES: (u8,u8) = (8, 3);
+const ENEMY_COLOR: (u8,u8,u8,u8) = (255, 180, 180, 255);
+const ENEMIES: (u8,u8) = (7, 3);
 
 pub struct Assets {
     pub image_map: HashMap<String, Image>
@@ -22,6 +22,8 @@ impl Assets {
             image_map: HashMap::new()
         };
         assets.image_map.insert("player".to_string(), graphics::Image::new(ctx, "/player.png").unwrap());
+        assets.image_map.insert("bullet".to_string(), graphics::Image::new(ctx, "/bullet.png").unwrap());
+        assets.image_map.insert("enemy".to_string(), graphics::Image::new(ctx, "/enemy.png").unwrap());
         assets
     }
 }
@@ -50,8 +52,8 @@ impl State {
                     Uuid::new_v4(),
                     Enemy::new(
                         Point2::new(80.0, 50.0) +
-                        (x as f32)*Vector2::new(60.0, 0.0) +
-                        (y as f32)*Vector2::new(0.0, 60.0)
+                        (x as f32)*Vector2::new(70.0, 0.0) +
+                        (y as f32)*Vector2::new(0.0, 70.0)
                     )
                 );
             }
@@ -138,24 +140,20 @@ impl EventHandler for State {
 
         //render bullets
         for (_, bullet) in &mut self.bullets {
-            let rect = graphics::Rect::new(bullet.position[0], bullet.position[1], bullet.size, bullet.size);
-            let r1 = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, Color::from(BULLET_COLOR))?;
-            graphics::draw(ctx, &r1, DrawParam::default())?;
+            let color = Color::from(BULLET_COLOR);
+            let sprite = self.assets.image_map.get("bullet").unwrap();
+            graphics::draw(ctx, sprite, (bullet.position, 0.0, color))?;
         }
 
         //render enemies
         for (_, enemy) in &mut self.enemies {
-            let mut mod_color = ENEMY_COLOR.clone();
+            let mut mod_color = ENEMY_COLOR;
             mod_color.3 = ((mod_color.3 as f32)*(enemy.health/100.0)) as u8;
-            let rect = graphics::Rect::new(enemy.position[0], enemy.position[1], enemy.size, enemy.size);
-            let r1 = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, Color::from(mod_color))?;
-            graphics::draw(ctx, &r1, DrawParam::default())?;
+            let sprite = self.assets.image_map.get("enemy").unwrap();
+            graphics::draw(ctx, sprite, (enemy.position, 0.0, Color::from(mod_color)))?;
         }
 
         //render player
-        //let rect = graphics::Rect::new(self.player.position[0], self.player.position[1], self.player.size, self.player.size);
-        //let r1 = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, graphics::WHITE)?;
-        //graphics::draw(ctx, &r1, DrawParam::default())?;
         let color = Color::from((255,255,255,255));
         let sprite = self.assets.image_map.get("player").unwrap();
         graphics::draw(ctx, sprite, (self.player.position, 0.0, color))?;

@@ -4,7 +4,7 @@ pub type Vector2 = na::Vector2<f32>;
 
 const FRICTION: f32 = 0.1;
 const BULLET_SPEED: f32 = 7.0;
-const BULLET_SIZE: f32 = 5.0;
+const BULLET_SIZE: f32 = 10.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Player {
@@ -46,7 +46,7 @@ impl Enemy {
         Enemy {
             position: position,
             velocity: Vector2::new(0.0, 0.04),
-            size: 30.0,
+            size: 45.0,
             health: 100.0
         }
     }
