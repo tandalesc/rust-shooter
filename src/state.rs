@@ -1,4 +1,4 @@
-use ggez::graphics::{Color, DrawMode, DrawParam};
+use ggez::graphics::{Color, DrawMode, DrawParam, Image};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
 use ggez::*;
 use uuid::Uuid;
@@ -9,23 +9,39 @@ use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet};
 
 const BULLET_COLOR: (u8,u8,u8,u8) = (200, 200, 200, 255);
 const BULLET_DAMAGE: f32 = 40.0;
+const BULLET_COOLDOWN: i16 = 20;
 const ENEMY_COLOR: (u8,u8,u8,u8) = (170, 50, 50, 255);
-const ENEMIES: (u8,u8) = (8, 4);
+const ENEMIES: (u8,u8) = (8, 3);
+
+pub struct Assets {
+    pub image_map: HashMap<String, Image>
+}
+impl Assets {
+    pub fn new(ctx: &mut Context) -> Assets {
+        let mut assets = Assets {
+            image_map: HashMap::new()
+        };
+        assets.image_map.insert("player".to_string(), graphics::Image::new(ctx, "/player.png").unwrap());
+        assets
+    }
+}
 
 pub struct State {
     player: Player,
     bullets: HashMap<uuid::Uuid, Bullet>,
     enemies: HashMap<uuid::Uuid, Enemy>,
-    keys: HashSet<KeyCode>
+    keys: HashSet<KeyCode>,
+    assets: Assets
 }
 
 impl State {
-    pub fn new(_ctx: &mut Context) -> GameResult<State> {
+    pub fn new(ctx: &mut Context) -> GameResult<State> {
         let mut state = State {
             player: Player::new(),
             bullets: HashMap::new(),
             enemies: HashMap::new(),
-            keys: HashSet::with_capacity(6)
+            keys: HashSet::with_capacity(6),
+            assets: Assets::new(ctx)
         };
         //generate a grid of enemies
         for x in 0..ENEMIES.0 {
@@ -60,7 +76,7 @@ impl State {
                 KeyCode::Space => {
                     if self.player.bullet_counter == 0 {
                         self.bullets.insert(Uuid::new_v4(), Bullet::new(&self.player, -1.0));
-                        self.player.bullet_counter = 15;
+                        self.player.bullet_counter = BULLET_COOLDOWN;
                     }
                 }
                 KeyCode::Escape => {
@@ -71,7 +87,7 @@ impl State {
         }
         Ok(())
     }
-    fn handle_bullets(&mut self, ctx: &mut Context) -> GameResult<()> {
+    fn handle_bullets(&mut self, _ctx: &mut Context) -> GameResult<()> {
         let mut bullet_ids: HashSet<Uuid> = HashSet::new();
         for (bullet_id, bullet) in &mut self.bullets {
             if (bullet.position[0]<(-bullet.size) || bullet.position[0]>(640.0)) ||
@@ -105,7 +121,14 @@ impl State {
 
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        if self.enemies.len() == 0 {
+            println!("\nyou win!\n");
+            event::quit(ctx);
+        }
         self.player.physics();
+        for (_, enemy) in &mut self.enemies {
+            enemy.physics();
+        }
         self.handle_bullets(ctx)?;
         self.handle_keys(ctx)?;
         Ok(())
@@ -130,9 +153,12 @@ impl EventHandler for State {
         }
 
         //render player
-        let rect = graphics::Rect::new(self.player.position[0], self.player.position[1], self.player.size, self.player.size);
-        let r1 = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, graphics::WHITE)?;
-        graphics::draw(ctx, &r1, DrawParam::default())?;
+        //let rect = graphics::Rect::new(self.player.position[0], self.player.position[1], self.player.size, self.player.size);
+        //let r1 = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, graphics::WHITE)?;
+        //graphics::draw(ctx, &r1, DrawParam::default())?;
+        let color = Color::from((255,255,255,255));
+        let sprite = self.assets.image_map.get("player").unwrap();
+        graphics::draw(ctx, sprite, (self.player.position, 0.0, color))?;
 
         graphics::present(ctx)?;
         Ok(())

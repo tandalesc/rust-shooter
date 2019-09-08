@@ -2,9 +2,9 @@ use nalgebra as na;
 pub type Point2 = na::Point2<f32>;
 pub type Vector2 = na::Vector2<f32>;
 
-const FRICTION: f32 = 0.08;
-const BULLET_SPEED: f32 = 6.0;
-const BULLET_SIZE: f32 = 8.0;
+const FRICTION: f32 = 0.1;
+const BULLET_SPEED: f32 = 7.0;
+const BULLET_SIZE: f32 = 5.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Player {
@@ -18,7 +18,7 @@ impl Player {
         Player {
             position: Point2::new(50.0, 400.0),
             velocity: Vector2::new(0.0, 0.0),
-            size: 30.0,
+            size: 50.0,
             bullet_counter: 0
         }
     }
@@ -45,10 +45,13 @@ impl Enemy {
     pub fn new(position: Point2) -> Enemy {
         Enemy {
             position: position,
-            velocity: Vector2::new(0.0, 0.0),
+            velocity: Vector2::new(0.0, 0.04),
             size: 30.0,
             health: 100.0
         }
+    }
+    pub fn physics(&mut self) {
+        self.position += self.velocity;
     }
 }
 
@@ -68,8 +71,6 @@ impl Bullet {
         }
     }
     pub fn physics(&mut self) {
-        if self.position[1] > -self.size {
-            self.position += self.velocity;
-        }
+        self.position += self.velocity;
     }
 }
