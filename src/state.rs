@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, BULLET_SPEED};
 
 const BULLET_DAMAGE: f32 = 5.0;
-const BULLET_SPACING: i16 = 8;
+const BULLET_SPACING: i16 = 6;
 const ENEMIES: (u8,u8) = (7, 3);
 
 pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
@@ -72,7 +72,7 @@ impl State {
                 KeyCode::Space => {
                     if self.player.bullet_spacing==0 {
                         for _bullet_num in -3..4 {
-                            let bullet_num = (_bullet_num as f32) * 2.0;
+                            let bullet_num = (_bullet_num*2) as f32;
                             let velocity = Vector2::new(0.2*bullet_num, -1.0*BULLET_SPEED);
                             let offset = Vector2::new(3.0*bullet_num, (3.0*bullet_num).abs()-5.0);
                             self.bullets.insert(Uuid::new_v4(), Bullet::new(&self.player, velocity, Some(offset)));
@@ -96,8 +96,8 @@ impl State {
             for (bullet_id, bullet) in &mut self.bullets {
                 let bullet_square = get_grid_square(bullet.position);
                 //broad-form collision
-                if (bullet_square.0 - enemy_square.0).abs() < 1.0 ||
-                    (bullet_square.1 - enemy_square.1).abs() < 1.0 {
+                if (bullet_square.0 - enemy_square.0).abs() <= 1.0 &&
+                    (bullet_square.1 - enemy_square.1).abs() <= 1.0 {
                     //narrow-form collision
                     if bullet.position[0] < enemy.position[0]+enemy.size &&
                         bullet.position[0] + bullet.size > enemy.position[0] &&
@@ -108,8 +108,8 @@ impl State {
                         //do damage
                         enemy.health -= BULLET_DAMAGE;
                     }
-                } else if (bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0) ||
-                    (bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1) {
+                } else if bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0 ||
+                    bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1 {
                     //mark bullet for deletion
                     bullet_ids.insert(*bullet_id);
                 }
@@ -152,14 +152,14 @@ impl EventHandler for State {
 
         //render bullets
         for (_, bullet) in &mut self.bullets {
-            self.spritebatch_bullet.add(DrawParam::new().dest(bullet.position).scale(Vector2::new(SCALE, SCALE)));
+            self.spritebatch_bullet.add(DrawParam::new().dest(bullet.position));
         }
         //render enemies
         for (_, enemy) in &mut self.enemies {
-            self.spritebatch_enemy.add(DrawParam::new().dest(enemy.position).scale(Vector2::new(SCALE, SCALE)));
+            self.spritebatch_enemy.add(DrawParam::new().dest(enemy.position));
         }
         //render player
-        self.spritebatch_player.add(DrawParam::new().dest(self.player.position).scale(Vector2::new(SCALE, SCALE)));
+        self.spritebatch_player.add(DrawParam::new().dest(self.player.position));
 
         graphics::draw(ctx, &self.spritebatch_bullet, DrawParam::new())?;
         graphics::draw(ctx, &self.spritebatch_enemy, DrawParam::new())?;
