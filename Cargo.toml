@@ -10,4 +10,5 @@ edition = "2018"
 ggez = "0.5"
 rand = "0.7.0"
 nalgebra = "0.18"
+trees = "0.2.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }

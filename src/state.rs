@@ -1,4 +1,4 @@
-use ggez::graphics::{Color, DrawMode, DrawParam, Image};
+use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, Rect};
 use ggez::graphics::spritebatch::{SpriteBatch};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
 use ggez::*;
@@ -9,14 +9,21 @@ use std::collections::HashMap;
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, BULLET_SPEED};
 
 const BULLET_DAMAGE: f32 = 5.0;
-const BULLET_SPACING: i16 = 6;
+const BULLET_SPACING_T: i16 = 12;
+const BULLET_SPACING_X: f32 = 6.0;
+const BULLET_SPACING_Y: f32 = 0.8;
+const BULLET_OFFSET: f32 = -3.5;
+const BULLET_SPREAD: i16 = 1;
+const BULLET_ANGLE: f32 = 0.05;
 const ENEMIES: (u8,u8) = (7, 3);
 
-pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
-const GRID_RESOLUTION: (f32, f32) = (10.0, 10.0);
-const SCALE: f32 = 1.0;
+const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 
-const DEBUG: bool = false;
+pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
+pub const GRID_RESOLUTION: (f32, f32) = (10.0, 10.0);
+
+const SHOW_FRAMERATE: bool = true;
+const SHOW_HITBOXES: bool = false;
 
 pub struct State {
     player: Player,
@@ -71,13 +78,13 @@ impl State {
                 }
                 KeyCode::Space => {
                     if self.player.bullet_spacing==0 {
-                        for _bullet_num in -3..4 {
+                        for _bullet_num in -BULLET_SPREAD..(BULLET_SPREAD+1) {
                             let bullet_num = (_bullet_num*2) as f32;
-                            let velocity = Vector2::new(0.2*bullet_num, -1.0*BULLET_SPEED);
-                            let offset = Vector2::new(3.0*bullet_num, (3.0*bullet_num).abs()-5.0);
+                            let velocity = Vector2::new(BULLET_ANGLE*bullet_num, -BULLET_SPEED);
+                            let offset = Vector2::new(BULLET_SPACING_X*bullet_num, (BULLET_SPACING_Y*bullet_num).powf(2.0)+BULLET_OFFSET);
                             self.bullets.insert(Uuid::new_v4(), Bullet::new(&self.player, velocity, Some(offset)));
                         }
-                        self.player.bullet_spacing = BULLET_SPACING;
+                        self.player.bullet_spacing = BULLET_SPACING_T;
                     }
                 }
                 KeyCode::Escape => {
@@ -92,22 +99,12 @@ impl State {
         let mut bullet_ids: HashSet<Uuid> = HashSet::new();
 
         for (_, enemy) in &mut self.enemies {
-            let enemy_square = get_grid_square(enemy.position);
             for (bullet_id, bullet) in &mut self.bullets {
-                let bullet_square = get_grid_square(bullet.position);
-                //broad-form collision
-                if (bullet_square.0 - enemy_square.0).abs() <= 1.0 &&
-                    (bullet_square.1 - enemy_square.1).abs() <= 1.0 {
-                    //narrow-form collision
-                    if bullet.position[0] < enemy.position[0]+enemy.size &&
-                        bullet.position[0] + bullet.size > enemy.position[0] &&
-                        bullet.position[1] < enemy.position[1]+enemy.size &&
-                        bullet.position[1] + bullet.size > enemy.position[1] {
-                        //mark bullet for deletion
-                        bullet_ids.insert(*bullet_id);
-                        //do damage
-                        enemy.health -= BULLET_DAMAGE;
-                    }
+                if bullet.hitbox_tree.collides_with(&enemy.hitbox_tree) {
+                    //mark bullet for deletion
+                    bullet_ids.insert(*bullet_id);
+                    //do damage
+                    enemy.health -= BULLET_DAMAGE;
                 } else if bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0 ||
                     bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1 {
                     //mark bullet for deletion
@@ -124,8 +121,10 @@ impl State {
 
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        if DEBUG && timer::ticks(ctx) % 50 == 0 {
-            println!("Average FPS: {}, Num Bullets: {}", timer::fps(ctx), self.bullets.len());
+        if timer::ticks(ctx) % 50 == 0 {
+            if SHOW_FRAMERATE {
+                println!("Average FPS: {}, #Bullets: {}", timer::fps(ctx), self.bullets.len());
+            }
         }
 
         self.handle_keys(ctx)?;
@@ -153,17 +152,41 @@ impl EventHandler for State {
         //render bullets
         for (_, bullet) in &mut self.bullets {
             self.spritebatch_bullet.add(DrawParam::new().dest(bullet.position));
+            if SHOW_HITBOXES {
+                for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
+                    let hitbox = hitbox_visit.data;
+                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
+                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
+                    graphics::draw(ctx, &mesh, DrawParam::default())?;
+                }
+            }
         }
         //render enemies
         for (_, enemy) in &mut self.enemies {
             self.spritebatch_enemy.add(DrawParam::new().dest(enemy.position));
+            if SHOW_HITBOXES {
+                for hitbox_visit in enemy.hitbox_tree.bfs_iter() {
+                    let hitbox = hitbox_visit.data;
+                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
+                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
+                    graphics::draw(ctx, &mesh, DrawParam::default())?;
+                }
+            }
         }
         //render player
         self.spritebatch_player.add(DrawParam::new().dest(self.player.position));
+        if SHOW_HITBOXES {
+            for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
+                let hitbox = hitbox_visit.data;
+                let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
+                let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
+                graphics::draw(ctx, &mesh, DrawParam::default())?;
+            }
+        }
 
-        graphics::draw(ctx, &self.spritebatch_bullet, DrawParam::new())?;
-        graphics::draw(ctx, &self.spritebatch_enemy, DrawParam::new())?;
-        graphics::draw(ctx, &self.spritebatch_player, DrawParam::new())?;
+        graphics::draw(ctx, &self.spritebatch_bullet, DrawParam::default())?;
+        graphics::draw(ctx, &self.spritebatch_enemy, DrawParam::default())?;
+        graphics::draw(ctx, &self.spritebatch_player, DrawParam::default())?;
         self.spritebatch_bullet.clear();
         self.spritebatch_enemy.clear();
         self.spritebatch_player.clear();
@@ -177,8 +200,4 @@ impl EventHandler for State {
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymod: KeyMods, _repeat: bool) {
         self.keys.insert(keycode);
     }
-}
-
-fn get_grid_square(p: Point2) -> (f32, f32) {
-    ((p.x*GRID_RESOLUTION.0/RESOLUTION.0).trunc(), (p.y*GRID_RESOLUTION.1/RESOLUTION.1).trunc())
 }
