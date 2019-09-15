@@ -14,7 +14,7 @@ const BULLET_SPACING_X: f32 = 6.0;
 const BULLET_SPACING_Y: f32 = 0.8;
 const BULLET_OFFSET: f32 = -3.5;
 const BULLET_SPREAD: i16 = 1;
-const BULLET_ANGLE: f32 = 0.05;
+const BULLET_ANGLE: f32 = 0.08;
 const ENEMIES: (u8,u8) = (7, 3);
 
 const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
@@ -22,7 +22,7 @@ const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
 pub const GRID_RESOLUTION: (f32, f32) = (10.0, 10.0);
 
-const SHOW_FRAMERATE: bool = true;
+const SHOW_FRAMERATE: bool = false;
 const SHOW_HITBOXES: bool = false;
 
 pub struct State {
@@ -105,6 +105,7 @@ impl State {
                     bullet_ids.insert(*bullet_id);
                     //do damage
                     enemy.health -= BULLET_DAMAGE;
+                    enemy.flash_frames = 5;
                 } else if bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0 ||
                     bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1 {
                     //mark bullet for deletion
@@ -132,6 +133,10 @@ impl EventHandler for State {
         self.player.physics();
         for (_, enemy) in &mut self.enemies {
             enemy.physics();
+            if self.player.invincibility_frames==0 && enemy.hitbox_tree.collides_with(&self.player.hitbox_tree) {
+                self.player.health -= 10.0;
+                self.player.invincibility_frames = 100;
+            }
         }
         for (_, bullet) in &mut self.bullets {
             bullet.physics();
@@ -144,6 +149,11 @@ impl EventHandler for State {
             println!("\nyou win!\n");
             event::quit(ctx);
         }
+        //lose state
+        if self.player.health <= 0.0 {
+            println!("\nyou lose!\n");
+            event::quit(ctx);
+        }
         Ok(())
     }
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
@@ -151,7 +161,7 @@ impl EventHandler for State {
 
         //render bullets
         for (_, bullet) in &mut self.bullets {
-            self.spritebatch_bullet.add(DrawParam::new().dest(bullet.position));
+            self.spritebatch_bullet.add(DrawParam::default().dest(bullet.position));
             if SHOW_HITBOXES {
                 for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
                     let hitbox = hitbox_visit.data;
@@ -163,7 +173,11 @@ impl EventHandler for State {
         }
         //render enemies
         for (_, enemy) in &mut self.enemies {
-            self.spritebatch_enemy.add(DrawParam::new().dest(enemy.position));
+            let mut enemy_draw_param = DrawParam::default().dest(enemy.position);
+            if enemy.flash_frames>0 {
+                enemy_draw_param = enemy_draw_param.color(Color::new(2.0, 1.0, 1.0, 1.0));
+            }
+            self.spritebatch_enemy.add(enemy_draw_param);
             if SHOW_HITBOXES {
                 for hitbox_visit in enemy.hitbox_tree.bfs_iter() {
                     let hitbox = hitbox_visit.data;
@@ -174,7 +188,11 @@ impl EventHandler for State {
             }
         }
         //render player
-        self.spritebatch_player.add(DrawParam::new().dest(self.player.position));
+        let mut player_draw_param = DrawParam::default().dest(self.player.position);
+        if self.player.invincibility_frames>0 && self.player.invincibility_frames/10%2==0 {
+            player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.3));
+        }
+        self.spritebatch_player.add(player_draw_param);
         if SHOW_HITBOXES {
             for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
                 let hitbox = hitbox_visit.data;
@@ -190,6 +208,11 @@ impl EventHandler for State {
         self.spritebatch_bullet.clear();
         self.spritebatch_enemy.clear();
         self.spritebatch_player.clear();
+
+        //player hud
+        let hud_rect = Rect::new(10.0, 11.0*RESOLUTION.1/12.0-10.0, self.player.health/100.0*3.0*RESOLUTION.0/12.0, RESOLUTION.1/12.0);
+        let hud_mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_rect, Color::new(1.0, 0.0, 0.0, 0.4))?;
+        graphics::draw(ctx, &hud_mesh, DrawParam::default())?;
 
         graphics::present(ctx)?;
         Ok(())

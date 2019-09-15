@@ -9,7 +9,7 @@ pub type Point2 = na::Point2<f32>;
 pub type Vector2 = na::Vector2<f32>;
 
 pub const FRICTION: f32 = 0.1;
-pub const BULLET_SPEED: f32 = 3.0;
+pub const BULLET_SPEED: f32 = 5.0;
 pub const BULLET_SIZE: f32 = 10.0;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,11 +74,10 @@ impl HitboxTree {
                     self_queue.pop_front();
                 }
             } else {
-                if other_node.is_leaf() {
-                    other_queue.pop_front();
-                }
                 if self_node.is_leaf() {
                     self_queue.pop_front();
+                } else {
+                    other_queue.pop_front();
                 }
             }
         }
@@ -100,6 +99,8 @@ pub struct Player {
     pub position: Point2,
     pub velocity: Vector2,
     pub size: f32,
+    pub health: f32,
+    pub invincibility_frames: i16,
     pub bullet_spacing: i16,
     pub hitbox_tree: HitboxTree
 }
@@ -111,11 +112,13 @@ impl Player {
             position: pos,
             velocity: Vector2::new(0.0, 0.0),
             size: size,
+            health: 100.0,
             bullet_spacing: 0,
+            invincibility_frames: 0,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size))
-                    /( tr(Hitbox::new(pos+Vector2::new(0.0, size/3.0), Vector2::new(size, size/3.0))) )
-                    /( tr(Hitbox::new(pos+Vector2::new(size/4.0, size/7.0), Vector2::new(size/2.0, 3.0*size/4.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/7.0, size/3.0), Vector2::new(5.0*size/7.0, size/3.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/4.0, size/7.0), Vector2::new(size/2.0, 5.0*size/7.0))) )
             )
         }
     }
@@ -136,6 +139,8 @@ impl Player {
 
         //weapon cooldown
         self.bullet_spacing = (self.bullet_spacing-1).max(0);
+        //invincibility frames
+        self.invincibility_frames = (self.invincibility_frames-1).max(0);
     }
 }
 
@@ -145,6 +150,7 @@ pub struct Enemy {
     pub velocity: Vector2,
     pub size: f32,
     pub health: f32,
+    pub flash_frames: i32,
     pub hitbox_tree: HitboxTree
 }
 impl Enemy {
@@ -155,16 +161,19 @@ impl Enemy {
             velocity: Vector2::new(0.0, 0.04),
             size: size,
             health: 100.0,
+            flash_frames: 0,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(position, size))
-                    /( tr(Hitbox::new(position+Vector2::new(0.0, size/3.0), Vector2::new(size, size/4.0))) )
-                    /( tr(Hitbox::new(position+Vector2::new(size/4.0, 0.0), Vector2::new(size/2.0, 3.0*size/4.0))) )
+                    /( tr(Hitbox::new(position+Vector2::new(0.0, 2.0*size/5.0), Vector2::new(size, size/7.0))) )
+                    /( tr(Hitbox::new(position+Vector2::new(size/3.0, 0.0), Vector2::new(size/3.0, 7.0*size/10.0))) )
             )
         }
     }
     pub fn physics(&mut self) {
         self.position += self.velocity;
         self.hitbox_tree.move_delta(self.velocity);
+        //invincibility frames
+        self.flash_frames = (self.flash_frames-1).max(0);
     }
 }
 
