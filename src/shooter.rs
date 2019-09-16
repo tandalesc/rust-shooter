@@ -3,14 +3,10 @@ use trees::{tr, bfs, Tree, Node};
 use trees::linked::fully::iter::{Iter, IterMut};
 use std::collections::LinkedList;
 
-use crate::state::{RESOLUTION, GRID_RESOLUTION};
+use crate::state::{RESOLUTION, GRID_RESOLUTION, BULLET_SPEED, BULLET_SIZE, FRICTION};
 
 pub type Point2 = na::Point2<f32>;
 pub type Vector2 = na::Vector2<f32>;
-
-pub const FRICTION: f32 = 0.1;
-pub const BULLET_SPEED: f32 = 5.0;
-pub const BULLET_SIZE: f32 = 10.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hitbox {
@@ -94,6 +90,19 @@ impl HitboxTree {
     }
 }
 
+pub trait GameObject {
+    fn get_position(&self) -> Point2;
+    fn get_size(&self) -> Vector2;
+    fn get_hitbox_tree(&self) -> Option<&HitboxTree>;
+    fn collides_with(&self, other: &dyn GameObject) -> bool {
+        if let (Some(sht), Some(oht)) = (self.get_hitbox_tree(), other.get_hitbox_tree()) {
+            sht.collides_with(&oht)
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Player {
     pub position: Point2,
@@ -118,7 +127,8 @@ impl Player {
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size))
                     /( tr(Hitbox::new(pos+Vector2::new(size/7.0, size/3.0), Vector2::new(5.0*size/7.0, size/3.0))) )
-                    /( tr(Hitbox::new(pos+Vector2::new(size/4.0, size/7.0), Vector2::new(size/2.0, 5.0*size/7.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/20.0, 2.0*size/5.0), Vector2::new(18.0*size/20.0, size/5.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/3.0, size/7.0), Vector2::new(size/3.0, 5.0*size/7.0))) )
             )
         }
     }
@@ -141,6 +151,17 @@ impl Player {
         self.bullet_spacing = (self.bullet_spacing-1).max(0);
         //invincibility frames
         self.invincibility_frames = (self.invincibility_frames-1).max(0);
+    }
+}
+impl GameObject for Player {
+    fn get_position(&self) -> Point2 {
+        self.position
+    }
+    fn get_size(&self) -> Vector2 {
+        Vector2::new(self.size, self.size)
+    }
+    fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
+        Some(&self.hitbox_tree)
     }
 }
 
@@ -176,35 +197,56 @@ impl Enemy {
         self.flash_frames = (self.flash_frames-1).max(0);
     }
 }
+impl GameObject for Enemy {
+    fn get_position(&self) -> Point2 {
+        self.position
+    }
+    fn get_size(&self) -> Vector2 {
+        Vector2::new(self.size, self.size)
+    }
+    fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
+        Some(&self.hitbox_tree)
+    }
+}
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bullet {
     pub position: Point2,
     pub velocity: Vector2,
+    pub angle: f32,
     pub size: f32,
     pub hitbox_tree: HitboxTree
 }
 impl Bullet {
-    pub fn new(player: &Player, velocity: Vector2, offset: Option<Vector2>) -> Bullet {
-        let default_offset = Vector2::new((player.size-BULLET_SIZE)/2.0, velocity.y.signum()*BULLET_SIZE);
+    pub fn new(obj: &dyn GameObject, velocity: Vector2, offset: Option<Vector2>) -> Bullet {
+        let default_offset = Vector2::new((obj.get_size().x-BULLET_SIZE)/2.0, velocity.y.signum()*BULLET_SIZE);
         let final_offset = if let Some(o) = offset { default_offset + o } else { default_offset };
-        let pos = player.position + final_offset;
+        let pos = obj.get_position() + final_offset;
         Bullet {
             position: pos,
             velocity: velocity,
+            angle: velocity.x.atan2(-velocity.y),
             size: BULLET_SIZE,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new(pos+Vector2::new(BULLET_SIZE/4.0, BULLET_SIZE/6.0), Vector2::new(BULLET_SIZE/2.0, BULLET_SIZE/2.0)))
             )
         }
     }
-    //pub fn new_center(player: &Player, direction: f32) -> Bullet {
-    //    Bullet::new(player, Vector2::new(0.0, direction*BULLET_SPEED), None)
-    //}
     pub fn physics(&mut self) {
         self.position += self.velocity;
         self.hitbox_tree.move_delta(self.velocity);
+    }
+}
+impl GameObject for Bullet {
+    fn get_position(&self) -> Point2 {
+        self.position
+    }
+    fn get_size(&self) -> Vector2 {
+        Vector2::new(self.size, self.size)
+    }
+    fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
+        Some(&self.hitbox_tree)
     }
 }
 

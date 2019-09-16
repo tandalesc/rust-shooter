@@ -1,4 +1,5 @@
 extern crate nalgebra;
+extern crate rand;
 
 mod state;
 mod shooter;
