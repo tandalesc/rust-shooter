@@ -163,11 +163,11 @@ impl State {
                 //bullets go towards player
                 let direction = self.player.position - enemy.position;
                 //norm_squared is cheaper, and we want more sensivity anyway
-                let dist = direction.norm_squared();
+                let dist = direction.norm();
                 //add some noise so the enemies aren't always sniping us
                 //but their accuracy goes up as they get closer
-                let accuracy = 1.0/dist;
-                let noise = self.rng.gen_range(-self.player.size, self.player.size) * Vector2::new(1.0,1.0) * (1.0-accuracy);
+                let accuracy = 1.0/dist/num_enemies as f32;
+                let noise = self.player.size/2.0*(self.rng.sample(StandardNormal)as f32) * (1.0-accuracy) * Vector2::new(1.0,1.0);
                 let velocity = (direction + noise).normalize()*3.0;
                 self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
@@ -187,6 +187,22 @@ impl State {
         self.enemy_ids.clear();
         Ok(())
     }
+    fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        //spawn stars occasionally
+        if self.rng.gen_range(0, 10)==0 {
+            //position is sampled uniformly across X-axis
+            let random_position = Point2::new(self.rng.sample(Uniform::new(0.0, RESOLUTION.0)), 0.0);
+            //size is sampled Normally with mean = 3.0, std-dev = 0.5
+            let random_size = 1.5+0.5*self.rng.sample(StandardNormal) as f32;
+            let velocity = Vector2::new(0.0, 5.0);
+            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size));
+        }
+        //apply physics to existing stars
+        for (_, star) in &mut self.stars { star.physics(); };
+        //delete stars that are off-screen
+        self.stars.retain(|_, star| !star.is_off_screen());
+        Ok(())
+    }
 }
 
 impl EventHandler for State {
@@ -198,22 +214,14 @@ impl EventHandler for State {
             }
         }
 
-        //spawn stars occasionally
-        if self.rng.sample(Uniform::new(0, 25))==0 {
-            let random_position = Point2::new(self.rng.sample(Uniform::new(0.0, RESOLUTION.0)), 0.0);
-            let random_size = 3.0+0.75*self.rng.sample(StandardNormal) as f32;
-            let velocity = Vector2::new(0.0, 5.0);
-            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size));
-        }
-        for (_, star) in &mut self.stars { star.physics(); };
-        self.stars.retain(|_, star| !star.is_off_screen());
-
         //better handle key presses and releases
         self.handle_keys(ctx)?;
         //apply game logic to bullets (and enemies/players who are hit)
         self.handle_bullets(ctx)?;
         //apply game logic to enemies
         self.handle_enemies(ctx)?;
+        //spawn stars
+        self.handle_background(ctx)?;
 
         //handle player movement
         self.player.physics();
