@@ -129,8 +129,7 @@ impl State {
                     //do damage
                     enemy.health -= BULLET_DAMAGE;
                     enemy.flash_frames = 5;
-                } else if bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0 ||
-                    bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1 {
+                } else if bullet.is_off_screen() {
                     //mark bullet for deletion
                     self.bullet_ids.insert(*bullet_id);
                 }
@@ -147,14 +146,16 @@ impl State {
                 //do damage
                 self.player.health -= 10.0;
                 self.player.invincibility_frames = PLAYER_INVINCIBILITY;
-            } else if bullet.position[0]<(-bullet.size) || bullet.position[0]>RESOLUTION.0 ||
-                bullet.position[1]<(-bullet.size) || bullet.position[1]>RESOLUTION.1 {
+            } else if bullet.is_off_screen() {
                 //mark bullet for deletion
                 self.bullet_ids.insert(*bullet_id);
             }
         }
         //remove any bullets that were marked for deletion
-        for id in &self.bullet_ids { self.bullets.remove(id); self.enemy_bullets.remove(id); }
+        for id in &self.bullet_ids {
+            self.bullets.remove(id);
+            self.enemy_bullets.remove(id);
+        }
         self.bullet_ids.clear();
         Ok(())
     }

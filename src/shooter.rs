@@ -116,6 +116,12 @@ pub trait GameObject {
             false
         }
     }
+    fn is_off_screen(&self) -> bool {
+        let pos = self.get_position();
+        let size = self.get_size();
+        pos.x<(-size.x) || pos.x>RESOLUTION.0 ||
+        pos.y<(-size.y) || pos.y>RESOLUTION.1
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
