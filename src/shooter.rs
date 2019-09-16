@@ -210,3 +210,29 @@ impl GameObject for Bullet {
         Some(&self.hitbox_tree)
     }
 }
+
+pub struct Star {
+    pub position: Point2,
+    pub velocity: Vector2,
+    pub size: f32
+}
+impl Star {
+    pub fn new(position: Point2, velocity: Vector2, size: f32) -> Star {
+        Star {
+            position: position,
+            velocity: velocity,
+            size: size
+        }
+    }
+    pub fn physics(&mut self) {
+        self.position += self.velocity;
+    }
+}
+impl GameObject for Star {
+    fn get_position(&self) -> Point2 {
+        self.position
+    }
+    fn get_size(&self) -> Vector2 {
+        Vector2::new(self.size, self.size)
+    }
+}

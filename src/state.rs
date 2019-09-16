@@ -3,12 +3,13 @@ use ggez::graphics::spritebatch::{SpriteBatch};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
 use ggez::*;
 use rand::Rng;
+use rand::distributions::{StandardNormal,Uniform};
 use rand::rngs::ThreadRng;
 use uuid::Uuid;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
-use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, GameObject};
+use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
 
 const ENEMIES: (u8,u8) = (7, 3);
 const ENEMY_SHOOT_CHANCE: usize = 10;
@@ -29,6 +30,7 @@ pub struct State {
     bullets: HashMap<Uuid, Bullet>,
     enemy_bullets: HashMap<Uuid, Bullet>,
     enemies: HashMap<Uuid, Enemy>,
+    stars: HashMap<Uuid, Star>,
     bullet_ids: HashSet<Uuid>,
     enemy_ids: HashSet<Uuid>,
     keys: HashSet<KeyCode>,
@@ -46,6 +48,7 @@ impl State {
             bullets: HashMap::new(),
             enemy_bullets: HashMap::new(),
             enemies: HashMap::new(),
+            stars: HashMap::new(),
             bullet_ids: HashSet::new(),
             enemy_ids: HashSet::new(),
             keys: HashSet::with_capacity(6),
@@ -195,6 +198,16 @@ impl EventHandler for State {
             }
         }
 
+        //spawn stars occasionally
+        if self.rng.sample(Uniform::new(0, 25))==0 {
+            let random_position = Point2::new(self.rng.sample(Uniform::new(0.0, RESOLUTION.0)), 0.0);
+            let random_size = 3.0+0.75*self.rng.sample(StandardNormal) as f32;
+            let velocity = Vector2::new(0.0, 5.0);
+            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size));
+        }
+        for (_, star) in &mut self.stars { star.physics(); };
+        self.stars.retain(|_, star| !star.is_off_screen());
+
         //better handle key presses and releases
         self.handle_keys(ctx)?;
         //apply game logic to bullets (and enemies/players who are hit)
@@ -295,6 +308,13 @@ impl EventHandler for State {
                 let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
                 graphics::draw(ctx, &mesh, DrawParam::default())?;
             }
+        }
+
+        //draw background layer
+        for (_, star) in &mut self.stars {
+            let rect = Rect::new(star.position.x, star.position.y, star.size, star.size);
+            let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::new(1.0, 1.0, 1.0, 0.7))?;
+            graphics::draw(ctx, &mesh, DrawParam::default())?;
         }
 
         //optionally scale all assets for arbitrary resolutions
