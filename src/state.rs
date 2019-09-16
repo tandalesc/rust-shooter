@@ -9,29 +9,22 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, GameObject};
+use crate::weapon::{Weapon};
 
-const BULLET_DAMAGE: f32 = 5.0;
 const BULLET_SPACING_X: f32 = 5.0;
 const BULLET_SPACING_Y: f32 = 0.7;
-//bullet-spacing in time axis (num frames)
-const BULLET_SPACING_T: i16 = 10;
-const BULLET_OFFSET: f32 = -3.0;
 const BULLET_ANGLE: f32 = 0.3;
-const BULLET_SPEED: f32 = 5.0;
-pub const BULLET_SIZE: f32 = 10.0;
 
 const ENEMIES: (u8,u8) = (7, 3);
-const ENEMY_SHOOT_CHANCE: usize = 50;
+const ENEMY_SHOOT_CHANCE: usize = 60;
 
 const PLAYER_EXP_PER_KILL: f32 = 40.0;
-const PLAYER_INVINCIBILITY: i16 = 60;
+const PLAYER_INVINCIBILITY: u32 = 60;
 const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 
 pub const FRICTION: f32 = 0.1;
 
 pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
-//sub-divides screen into 10x10 grid for the purposes of speeding up collision detection
-pub const GRID_RESOLUTION: (f32, f32) = (10.0, 10.0);
 
 const SHOW_FRAMERATE: bool = false;
 const SHOW_HITBOXES: bool = false;
@@ -97,16 +90,16 @@ impl State {
                     self.player.velocity += Vector2::new(0.0, 1.0);
                 }
                 KeyCode::Space => {
-                    //todo: refactor into different WeaponTypes and allow switching
                     if self.player.bullet_spacing==0 {
                         //scale number of bullets with weapon level
-                        for _bullet_num in -self.player.weapon_level..(self.player.weapon_level+1) {
+                        /*for _bullet_num in -self.player.weapon_level..(self.player.weapon_level+1) {
                             let bullet_num = (_bullet_num*2) as f32;
                             let velocity = Vector2::new(BULLET_ANGLE*bullet_num, -BULLET_SPEED);
                             let offset = Vector2::new(BULLET_SPACING_X*bullet_num, (BULLET_SPACING_Y*bullet_num).powf(2.0)+BULLET_OFFSET);
                             self.bullets.insert(Uuid::new_v4(), Bullet::new(&self.player, velocity, Some(offset)));
-                        }
-                        self.player.bullet_spacing = BULLET_SPACING_T;
+                        }*/
+                        for bullet in self.player.shoot() { self.bullets.insert(Uuid::new_v4(), bullet); }
+                        self.player.bullet_spacing = self.player.weapon.get_fire_rate();
                     }
                 }
                 KeyCode::Escape => {
@@ -127,7 +120,7 @@ impl State {
                     //mark bullet for deletion
                     self.bullet_ids.insert(*bullet_id);
                     //do damage
-                    enemy.health -= BULLET_DAMAGE;
+                    enemy.health -= bullet.damage;
                     enemy.flash_frames = 5;
                 } else if bullet.is_off_screen() {
                     //mark bullet for deletion
@@ -144,7 +137,7 @@ impl State {
                 //mark bullet for deletion
                 self.bullet_ids.insert(*bullet_id);
                 //do damage
-                self.player.health -= 10.0;
+                self.player.health -= bullet.damage;
                 self.player.invincibility_frames = PLAYER_INVINCIBILITY;
             } else if bullet.is_off_screen() {
                 //mark bullet for deletion
@@ -168,8 +161,8 @@ impl State {
             if self.rng.gen_range(0, ENEMY_SHOOT_CHANCE*num_enemies)==0 {
                 let offset = Vector2::new(0.0, 20.0);
                 //bullets go towards player
-                let velocity = (self.player.position - enemy.position).normalize()*BULLET_SPEED;
-                self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset)));
+                let velocity = (self.player.position - enemy.position).normalize()*3.0;
+                self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
             //only check for collisions if player is not invincible
             if self.player.invincibility_frames==0 && enemy.collides_with(&self.player) {
@@ -179,7 +172,7 @@ impl State {
             if enemy.health <= 0.0 {
                 //mark enemy for removal and add experience to player
                 self.enemy_ids.insert(*enemy_id);
-                self.player.experience += PLAYER_EXP_PER_KILL/((self.player.weapon_level+1) as f32).powf(2.0);
+                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.weapon.get_level() as f32);
             }
         }
         //remove any enemies that died
@@ -211,7 +204,7 @@ impl EventHandler for State {
         if self.player.experience >= 100.0 {
             println!("\nlevel up!\n");
             self.player.experience = 0.0;
-            self.player.weapon_level += 1;
+            self.player.weapon.level_up();
         }
 
         //win states

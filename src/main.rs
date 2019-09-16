@@ -2,6 +2,8 @@ extern crate nalgebra;
 extern crate rand;
 
 mod state;
+mod hitbox;
+mod weapon;
 mod shooter;
 
 use std::env;
