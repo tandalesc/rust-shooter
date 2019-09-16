@@ -1,5 +1,5 @@
 
-use crate::shooter::{Point2, Vector2, Bullet, Player};
+use crate::shooter::{Vector2, Bullet, Player};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Weapon {
@@ -11,6 +11,12 @@ impl Weapon {
         match self {
             Weapon::MachineGun(mg) => { mg.fire(shooter) },
             Weapon::WideGun(wg) => { wg.fire(shooter) }
+        }
+    }
+    pub fn get_info(&self) -> String {
+        match self {
+            Weapon::MachineGun(mg) => { format!("MachineGun ( level:{} )", mg.level) },
+            Weapon::WideGun(wg) => { format!("WideGun ( level:{} )", wg.level) }
         }
     }
     pub fn get_fire_rate(&self) -> u32 {

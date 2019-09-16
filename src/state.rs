@@ -1,4 +1,4 @@
-use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, Rect};
+use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, Rect, Text, TextFragment};
 use ggez::graphics::spritebatch::{SpriteBatch};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
 use ggez::*;
@@ -9,14 +9,9 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, GameObject};
-use crate::weapon::{Weapon};
-
-const BULLET_SPACING_X: f32 = 5.0;
-const BULLET_SPACING_Y: f32 = 0.7;
-const BULLET_ANGLE: f32 = 0.3;
 
 const ENEMIES: (u8,u8) = (7, 3);
-const ENEMY_SHOOT_CHANCE: usize = 60;
+const ENEMY_SHOOT_CHANCE: usize = 10;
 
 const PLAYER_EXP_PER_KILL: f32 = 40.0;
 const PLAYER_INVINCIBILITY: u32 = 60;
@@ -38,6 +33,7 @@ pub struct State {
     enemy_ids: HashSet<Uuid>,
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
+    status: Option<&'static str>,
     spritebatch_player: SpriteBatch,
     spritebatch_bullet: SpriteBatch,
     spritebatch_enemy: SpriteBatch
@@ -54,6 +50,7 @@ impl State {
             enemy_ids: HashSet::new(),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
+            status: None,
             spritebatch_player: SpriteBatch::new(Image::new(ctx, "/player.png").unwrap()),
             spritebatch_bullet: SpriteBatch::new(Image::new(ctx, "/bullet.png").unwrap()),
             spritebatch_enemy: SpriteBatch::new(Image::new(ctx, "/enemy.png").unwrap())
@@ -89,17 +86,16 @@ impl State {
                 KeyCode::Down => {
                     self.player.velocity += Vector2::new(0.0, 1.0);
                 }
+                KeyCode::LShift => {
+                    if self.player.bullet_spacing==0 {
+                        self.player.cycle_weapons();
+                        self.player.bullet_spacing += 50;
+                    }
+                }
                 KeyCode::Space => {
                     if self.player.bullet_spacing==0 {
-                        //scale number of bullets with weapon level
-                        /*for _bullet_num in -self.player.weapon_level..(self.player.weapon_level+1) {
-                            let bullet_num = (_bullet_num*2) as f32;
-                            let velocity = Vector2::new(BULLET_ANGLE*bullet_num, -BULLET_SPEED);
-                            let offset = Vector2::new(BULLET_SPACING_X*bullet_num, (BULLET_SPACING_Y*bullet_num).powf(2.0)+BULLET_OFFSET);
-                            self.bullets.insert(Uuid::new_v4(), Bullet::new(&self.player, velocity, Some(offset)));
-                        }*/
                         for bullet in self.player.shoot() { self.bullets.insert(Uuid::new_v4(), bullet); }
-                        self.player.bullet_spacing = self.player.weapon.get_fire_rate();
+                        self.player.bullet_spacing = self.player.get_weapon().get_fire_rate();
                     }
                 }
                 KeyCode::Escape => {
@@ -158,10 +154,18 @@ impl State {
             enemy.physics();
             //scale shooting chance with number of enemies
             //more enemies = each one shoots less frequently
-            if self.rng.gen_range(0, ENEMY_SHOOT_CHANCE*num_enemies)==0 {
+            let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies;
+            if self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
                 let offset = Vector2::new(0.0, 20.0);
                 //bullets go towards player
-                let velocity = (self.player.position - enemy.position).normalize()*3.0;
+                let direction = self.player.position - enemy.position;
+                //norm_squared is cheaper, and we want more sensivity anyway
+                let dist = direction.norm_squared();
+                //add some noise so the enemies aren't always sniping us
+                //but their accuracy goes up as they get closer
+                let accuracy = 1.0/dist;
+                let noise = self.rng.gen_range(-self.player.size, self.player.size) * Vector2::new(1.0,1.0) * (1.0-accuracy);
+                let velocity = (direction + noise).normalize()*3.0;
                 self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
             //only check for collisions if player is not invincible
@@ -172,7 +176,7 @@ impl State {
             if enemy.health <= 0.0 {
                 //mark enemy for removal and add experience to player
                 self.enemy_ids.insert(*enemy_id);
-                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.weapon.get_level() as f32);
+                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().get_level() as f32);
             }
         }
         //remove any enemies that died
@@ -202,20 +206,17 @@ impl EventHandler for State {
         self.player.physics();
         //level up
         if self.player.experience >= 100.0 {
-            println!("\nlevel up!\n");
             self.player.experience = 0.0;
-            self.player.weapon.level_up();
+            self.player.get_weapon_mut().level_up();
         }
 
         //win states
         if self.enemies.len() == 0 {
-            println!("\nyou win!\n");
-            event::quit(ctx);
+            self.status = Some("you win!");
         }
         //lose states
         if self.player.health <= 0.0 {
-            println!("\nyou lose!\n");
-            event::quit(ctx);
+            self.status = Some("game over");
         }
         Ok(())
     }
@@ -296,6 +297,11 @@ impl EventHandler for State {
             }
         }
 
+        //optionally scale all assets for arbitrary resolutions
+        //let ratio = if RESOLUTION.0>RESOLUTION.1 { RESOLUTION.0/RESOLUTION.1/640.0*480.0 } else { RESOLUTION.1/RESOLUTION.0/640.0*480.0 };
+        //let window_scaler = Vector2::new(ratio, ratio);
+        //graphics::set_default_filter(ctx, graphics::FilterMode::Nearest);
+
         //draw sprites, clear spritebatches
         graphics::draw(ctx, &self.spritebatch_bullet, DrawParam::default())?;
         graphics::draw(ctx, &self.spritebatch_enemy, DrawParam::default())?;
@@ -322,6 +328,14 @@ impl EventHandler for State {
         graphics::draw(ctx, &hud_exp_outline, DrawParam::default())?;
         graphics::draw(ctx, &hud_exp_filled, DrawParam::default())?;
 
+        //weapon information
+        let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().get_info()));
+        graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(10.0, 10.0)))?;
+        //status text
+        if let Some(status_text) = self.status {
+            let text = Text::new(TextFragment::new(status_text));
+            graphics::draw(ctx, &text, DrawParam::default().dest(Point2::new(RESOLUTION.0/2.0-50.0, RESOLUTION.1/2.0)))?;
+        }
         //end
         graphics::present(ctx)?;
         Ok(())

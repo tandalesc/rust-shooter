@@ -39,10 +39,10 @@ pub struct Player {
     pub size: f32,
     pub health: f32,
     pub experience: f32,
-    pub weapon_level: u32,
     pub invincibility_frames: u32,
     pub bullet_spacing: u32,
-    pub weapon: Weapon,
+    weapons: Vec<Weapon>,
+    current_weapon_idx: usize,
     pub hitbox_tree: HitboxTree,
 }
 impl Player {
@@ -55,10 +55,13 @@ impl Player {
             size: size,
             health: 100.0,
             experience: 0.0,
-            weapon_level: 0,
             bullet_spacing: 0,
             invincibility_frames: 0,
-            weapon: Weapon::WideGun(WideGun::new()),//Weapon::MachineGun(MachineGun::new()),
+            weapons: vec![
+                Weapon::WideGun(WideGun::new()),
+                Weapon::MachineGun(MachineGun::new())
+            ],
+            current_weapon_idx: 0,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size)) //root
                     /( tr(Hitbox::new(pos+Vector2::new(size/7.0, size/3.0), Vector2::new(5.0*size/7.0, size/3.0))) ) //fuselage
@@ -67,13 +70,26 @@ impl Player {
             )
         }
     }
+    pub fn get_weapon_mut(&mut self) -> &mut Weapon {
+        &mut self.weapons[self.current_weapon_idx]
+    }
+    pub fn get_weapon(&self) -> &Weapon {
+        &self.weapons[self.current_weapon_idx]
+    }
+    pub fn cycle_weapons(&mut self) {
+        if self.current_weapon_idx+1 < self.weapons.len() {
+            self.current_weapon_idx += 1;
+        } else {
+            self.current_weapon_idx = 0;
+        }
+    }
     pub fn shoot(&self) -> Vec<Bullet> {
-        self.weapon.fire(&self)
+        self.get_weapon().fire(&self)
     }
     pub fn physics(&mut self) {
         //rudimentary physics
         let new_pos = self.position + self.velocity;
-        self.velocity -= FRICTION*self.velocity;
+        self.velocity *= 1.0-FRICTION; //take away the frictional component
 
         //clamp position to screen
         let delta = Vector2::new(
