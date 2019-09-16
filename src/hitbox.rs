@@ -3,7 +3,7 @@ use trees::{bfs, Tree, Node};
 use trees::linked::fully::iter::{Iter, IterMut};
 use std::collections::LinkedList;
 
-use crate::state::{RESOLUTION};
+use crate::state::{INTERNAL_RESOLUTION};
 use crate::shooter::{Point2, Vector2};
 
 //sub-divides screen into 10x10 grid for the purposes of speeding up collision detection
@@ -107,5 +107,5 @@ impl HitboxTree {
 //convert a Point2 to a discrete location on a grid
 //returns (f32, f32) as a convinience, but all components are floored
 fn get_grid_square(p: Point2) -> (f32, f32) {
-    ((p.x*GRID_RESOLUTION.0/RESOLUTION.0).floor(), (p.y*GRID_RESOLUTION.1/RESOLUTION.1).floor())
+    ((p.x*GRID_RESOLUTION.0/INTERNAL_RESOLUTION.0).floor(), (p.y*GRID_RESOLUTION.1/INTERNAL_RESOLUTION.1).floor())
 }

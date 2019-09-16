@@ -1,7 +1,7 @@
 use nalgebra as na;
 use trees::tr;
 
-use crate::state::{RESOLUTION, FRICTION};
+use crate::state::{DISPLAY_RESOLUTION, INTERNAL_RESOLUTION, FRICTION};
 use crate::hitbox::{Hitbox, HitboxTree};
 use crate::weapon::{Weapon, MachineGun, WideGun};
 
@@ -27,8 +27,8 @@ pub trait GameObject {
     fn is_off_screen(&self) -> bool {
         let pos = self.get_position();
         let size = self.get_size();
-        pos.x<(-size.x) || pos.x>RESOLUTION.0 ||
-        pos.y<(-size.y) || pos.y>RESOLUTION.1
+        pos.x<(-size.x) || pos.x>INTERNAL_RESOLUTION.0 ||
+        pos.y<(-size.y) || pos.y>INTERNAL_RESOLUTION.1
     }
 }
 
@@ -88,17 +88,16 @@ impl Player {
     }
     pub fn physics(&mut self) {
         //rudimentary physics
-        let new_pos = self.position + self.velocity;
+        let mut new_pos = self.position + self.velocity;
         self.velocity *= 1.0-FRICTION; //take away the frictional component
 
         //clamp position to screen
-        let delta = Vector2::new(
-            new_pos.x.max(0.0).min(RESOLUTION.0-self.size) - self.position.x,
-            new_pos.y.max(0.0).min(RESOLUTION.1-self.size) - self.position.y
-        );
+        new_pos.x = new_pos.x.max(0.0).min(INTERNAL_RESOLUTION.0-self.size);
+        new_pos.y = new_pos.y.max(0.0).min(INTERNAL_RESOLUTION.1-self.size);
+        let delta = new_pos - self.position;
 
         //update positions of sprite and hitbox
-        self.position += delta;
+        self.position = new_pos;
         self.hitbox_tree.move_delta(delta);
 
         //weapon cooldown
@@ -214,14 +213,16 @@ impl GameObject for Bullet {
 pub struct Star {
     pub position: Point2,
     pub velocity: Vector2,
-    pub size: f32
+    pub size: f32,
+    pub brightness: f32
 }
 impl Star {
-    pub fn new(position: Point2, velocity: Vector2, size: f32) -> Star {
+    pub fn new(position: Point2, velocity: Vector2, size: f32, brightness: f32) -> Star {
         Star {
             position: position,
             velocity: velocity,
-            size: size
+            size: size,
+            brightness: brightness
         }
     }
     pub fn physics(&mut self) {
@@ -234,5 +235,11 @@ impl GameObject for Star {
     }
     fn get_size(&self) -> Vector2 {
         Vector2::new(self.size, self.size)
+    }
+    fn is_off_screen(&self) -> bool {
+        let pos = self.get_position();
+        let size = self.get_size();
+        pos.x<(-size.x) || pos.x>DISPLAY_RESOLUTION.0 ||
+        pos.y<(-size.y) || pos.y>DISPLAY_RESOLUTION.1
     }
 }

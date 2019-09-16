@@ -1,10 +1,10 @@
-use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, Rect, Text, TextFragment};
+use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, MeshBuilder, Rect, Text, TextFragment};
 use ggez::graphics::spritebatch::{SpriteBatch};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
 use ggez::*;
 use rand::Rng;
-use rand::distributions::{StandardNormal,Uniform};
 use rand::rngs::ThreadRng;
+use rand_distr::StandardNormal;
 use uuid::Uuid;
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -20,7 +20,9 @@ const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 
 pub const FRICTION: f32 = 0.1;
 
-pub const RESOLUTION: (f32, f32) = (640.0, 480.0);
+pub const DISPLAY_RESOLUTION: (f32, f32) = (920.0, 690.0);
+pub const INTERNAL_RESOLUTION: (f32, f32) = (640.0, 480.0);
+pub const SCALED_RESOLUTION: (f32, f32) = (DISPLAY_RESOLUTION.0/INTERNAL_RESOLUTION.0, DISPLAY_RESOLUTION.1/INTERNAL_RESOLUTION.1);
 
 const SHOW_FRAMERATE: bool = false;
 const SHOW_HITBOXES: bool = false;
@@ -167,7 +169,8 @@ impl State {
                 //add some noise so the enemies aren't always sniping us
                 //but their accuracy goes up as they get closer
                 let accuracy = 1.0/dist/num_enemies as f32;
-                let noise = self.player.size/2.0*(self.rng.sample(StandardNormal)as f32) * (1.0-accuracy) * Vector2::new(1.0,1.0);
+                let normal_sample: f32 = self.rng.sample(StandardNormal);
+                let noise = self.player.size/2.0 * normal_sample * (1.0-accuracy) * Vector2::new(1.0,1.0);
                 let velocity = (direction + noise).normalize()*3.0;
                 self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
@@ -189,13 +192,17 @@ impl State {
     }
     fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
         //spawn stars occasionally
-        if self.rng.gen_range(0, 10)==0 {
+        if self.rng.gen_range(0.0, 1.0)<0.3 {
             //position is sampled uniformly across X-axis
-            let random_position = Point2::new(self.rng.sample(Uniform::new(0.0, RESOLUTION.0)), 0.0);
-            //size is sampled Normally with mean = 3.0, std-dev = 0.5
-            let random_size = 1.5+0.5*self.rng.sample(StandardNormal) as f32;
-            let velocity = Vector2::new(0.0, 5.0);
-            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size));
+            let random_position = Point2::new(self.rng.gen_range(0.0, DISPLAY_RESOLUTION.0), 0.0);
+            //generate some random numbers to calculate size, velocity, and brightness with
+            let normal_sample: f32 = self.rng.sample(StandardNormal);
+            let normal_sample_2: f32 = self.rng.gen_range(0.0, 1.0);
+            //these were experimentally determined biases and weights
+            let random_size = 1.0 + 0.5 * normal_sample.abs();
+            let velocity = Vector2::new(0.0, 0.3 + 0.3*normal_sample_2 + 0.3*normal_sample.abs());
+            //insert our new star into the collection
+            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size, normal_sample_2));
         }
         //apply physics to existing stars
         for (_, star) in &mut self.stars { star.physics(); };
@@ -243,6 +250,10 @@ impl EventHandler for State {
     }
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::BLACK);
+        let mut background_meshbuilder = MeshBuilder::new();
+        let mut hitbox_meshbuilder = MeshBuilder::new();
+        let window_scaler = Vector2::new(SCALED_RESOLUTION.0, SCALED_RESOLUTION.1);
+        let sprite_draw_params = DrawParam::default().scale(window_scaler);
 
         //render player bullets
         for (_, bullet) in &mut self.bullets {
@@ -258,8 +269,7 @@ impl EventHandler for State {
                 for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
                     let hitbox = hitbox_visit.data;
                     let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
-                    graphics::draw(ctx, &mesh, DrawParam::default())?;
+                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
                 }
             }
         }
@@ -277,8 +287,7 @@ impl EventHandler for State {
                 for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
                     let hitbox = hitbox_visit.data;
                     let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
-                    graphics::draw(ctx, &mesh, DrawParam::default())?;
+                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
                 }
             }
         }
@@ -296,8 +305,7 @@ impl EventHandler for State {
                 for hitbox_visit in enemy.hitbox_tree.bfs_iter() {
                     let hitbox = hitbox_visit.data;
                     let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
-                    graphics::draw(ctx, &mesh, DrawParam::default())?;
+                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
                 }
             }
         }
@@ -313,27 +321,30 @@ impl EventHandler for State {
             for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
                 let hitbox = hitbox_visit.data;
                 let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from(HITBOX_COLOR))?;
-                graphics::draw(ctx, &mesh, DrawParam::default())?;
+                hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
             }
         }
 
         //draw background layer
         for (_, star) in &mut self.stars {
-            let rect = Rect::new(star.position.x, star.position.y, star.size, star.size);
-            let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::new(1.0, 1.0, 1.0, 0.7))?;
-            graphics::draw(ctx, &mesh, DrawParam::default())?;
+            let dim = star.brightness*0.8;
+            background_meshbuilder.circle(DrawMode::fill(), star.position, star.size, 1.0, Color::new(dim, dim, dim, 1.0));
         }
 
-        //optionally scale all assets for arbitrary resolutions
-        //let ratio = if RESOLUTION.0>RESOLUTION.1 { RESOLUTION.0/RESOLUTION.1/640.0*480.0 } else { RESOLUTION.1/RESOLUTION.0/640.0*480.0 };
-        //let window_scaler = Vector2::new(ratio, ratio);
-        //graphics::set_default_filter(ctx, graphics::FilterMode::Nearest);
+
+        graphics::set_default_filter(ctx, graphics::FilterMode::Nearest);
+        //draw all accumulated meshes
+        if let Ok(mesh) = background_meshbuilder.build(ctx) {
+            graphics::draw(ctx, &mesh, DrawParam::default())?;
+        }
+        if let Ok(mesh) = hitbox_meshbuilder.build(ctx) {
+            graphics::draw(ctx, &mesh, sprite_draw_params)?;
+        }
 
         //draw sprites, clear spritebatches
-        graphics::draw(ctx, &self.spritebatch_bullet, DrawParam::default())?;
-        graphics::draw(ctx, &self.spritebatch_enemy, DrawParam::default())?;
-        graphics::draw(ctx, &self.spritebatch_player, DrawParam::default())?;
+        graphics::draw(ctx, &self.spritebatch_bullet, sprite_draw_params)?;
+        graphics::draw(ctx, &self.spritebatch_enemy, sprite_draw_params)?;
+        graphics::draw(ctx, &self.spritebatch_player, sprite_draw_params)?;
         self.spritebatch_bullet.clear();
         self.spritebatch_enemy.clear();
         self.spritebatch_player.clear();
@@ -341,28 +352,33 @@ impl EventHandler for State {
         //player hud
         //health
         //divide resolution by 12.0 or 24.0 and use as units with 10px as padding on edges
-        let hud_health_outline_rect = Rect::new(10.0, 23.0*RESOLUTION.1/24.0-10.0, 3.0*RESOLUTION.0/12.0, RESOLUTION.1/24.0);
-        let hud_health_rect = Rect::new(10.0, 23.0*RESOLUTION.1/24.0-10.0, self.player.health/100.0*3.0*RESOLUTION.0/12.0, RESOLUTION.1/24.0);
+        let hud_health_position = Point2::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
+        let hud_health_outline_rect = Rect::new(hud_health_position.x, hud_health_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
+        let hud_health_rect = Rect::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.health/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
         let hud_health_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(1.2), hud_health_outline_rect, Color::new(1.0, 0.0, 0.0, 0.8))?;
         let hud_health_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_health_rect, Color::new(1.0, 0.0, 0.0, 0.3))?;
         graphics::draw(ctx, &hud_health_outline, DrawParam::default())?;
         graphics::draw(ctx, &hud_health_filled, DrawParam::default())?;
         //experience
         //divide resolution by 12.0 or 24.0 and use as units with 10px as padding on edges
-        let hud_exp_outline_rect = Rect::new(9.0*RESOLUTION.0/12.0-10.0, 23.0*RESOLUTION.1/24.0-10.0, 3.0*RESOLUTION.0/12.0, RESOLUTION.1/24.0);
-        let hud_exp_rect = Rect::new(9.0*RESOLUTION.0/12.0-10.0, 23.0*RESOLUTION.1/24.0-10.0, self.player.experience/100.0*3.0*RESOLUTION.0/12.0, RESOLUTION.1/24.0);
+        let hud_exp_position = Point2::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
+        let hud_exp_outline_rect = Rect::new(hud_exp_position.x, hud_exp_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
+        let hud_exp_rect = Rect::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.experience/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
         let hud_exp_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(1.2), hud_exp_outline_rect, Color::new(0.0, 1.0, 0.0, 0.8))?;
         let hud_exp_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_exp_rect, Color::new(0.0, 1.0, 0.0, 0.3))?;
         graphics::draw(ctx, &hud_exp_outline, DrawParam::default())?;
         graphics::draw(ctx, &hud_exp_filled, DrawParam::default())?;
 
+        //health information
+        let health_text = Text::new(TextFragment::new(format!("health: {}",self.player.health)));
+        graphics::draw(ctx, &health_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, hud_health_position.y+10.0)))?;
         //weapon information
         let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().get_info()));
-        graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(10.0, 10.0)))?;
+        graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(hud_exp_position.x+10.0, hud_exp_position.y+10.0)))?;
         //status text
         if let Some(status_text) = self.status {
             let text = Text::new(TextFragment::new(status_text));
-            graphics::draw(ctx, &text, DrawParam::default().dest(Point2::new(RESOLUTION.0/2.0-50.0, RESOLUTION.1/2.0)))?;
+            graphics::draw(ctx, &text, DrawParam::default().dest(Point2::new(DISPLAY_RESOLUTION.0/2.0-50.0, DISPLAY_RESOLUTION.1/2.0)))?;
         }
         //end
         graphics::present(ctx)?;

@@ -15,8 +15,8 @@ impl Weapon {
     }
     pub fn get_info(&self) -> String {
         match self {
-            Weapon::MachineGun(mg) => { format!("MachineGun ( level:{} )", mg.level) },
-            Weapon::WideGun(wg) => { format!("WideGun ( level:{} )", wg.level) }
+            Weapon::MachineGun(mg) => { format!("MachineGun ( level: {} )", mg.level) },
+            Weapon::WideGun(wg) => { format!("WideGun ( level: {} )", wg.level) }
         }
     }
     pub fn get_fire_rate(&self) -> u32 {
