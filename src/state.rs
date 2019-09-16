@@ -16,7 +16,6 @@ const BULLET_SPACING_Y: f32 = 0.7;
 //bullet-spacing in time axis (num frames)
 const BULLET_SPACING_T: i16 = 10;
 const BULLET_OFFSET: f32 = -3.0;
-const BULLET_SPREAD: i16 = 2;
 const BULLET_ANGLE: f32 = 0.3;
 const BULLET_SPEED: f32 = 5.0;
 pub const BULLET_SIZE: f32 = 10.0;
@@ -24,6 +23,7 @@ pub const BULLET_SIZE: f32 = 10.0;
 const ENEMIES: (u8,u8) = (7, 3);
 const ENEMY_SHOOT_CHANCE: usize = 50;
 
+const PLAYER_EXP_PER_KILL: f32 = 40.0;
 const PLAYER_INVINCIBILITY: i16 = 60;
 const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 
@@ -179,7 +179,7 @@ impl State {
             if enemy.health <= 0.0 {
                 //mark enemy for removal and add experience to player
                 self.enemy_ids.insert(*enemy_id);
-                self.player.experience += 50.0/((self.player.weapon_level+1) as f32);
+                self.player.experience += PLAYER_EXP_PER_KILL/((self.player.weapon_level+1) as f32).powf(2.0);
             }
         }
         //remove any enemies that died
