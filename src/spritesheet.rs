@@ -4,19 +4,19 @@ use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpriteSheetData {
-    pub frames: HashMap<String, Sprite>,
+    pub frames: HashMap<String, SpriteData>,
     meta: SpriteSheetMeta
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Sprite {
-    pub frame: Rect,
+pub struct SpriteData {
+    pub frame: RectU32,
     rotated: bool,
     trimmed: bool,
     #[serde(rename = "spriteSourceSize")]
-    pub sprite_source_size: Rect,
+    pub sprite_source_size: RectU32,
     #[serde(rename = "sourceSize")]
-    pub source_size: Size
+    pub source_size: SizeU32
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -25,21 +25,21 @@ struct SpriteSheetMeta {
     version: String,
     image: String,
     format: String,
-    size: Size,
+    size: SizeU32,
     scale: String,
     #[serde(rename = "smartupdate")]
     smart_update: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Rect {
+pub struct RectU32 {
     pub x: u32,
     pub y: u32,
     pub w: u32,
     pub h: u32
 }
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Size {
+pub struct SizeU32 {
     pub w: u32,
     pub h: u32
 }
