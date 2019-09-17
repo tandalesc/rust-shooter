@@ -5,6 +5,7 @@ mod state;
 mod hitbox;
 mod weapon;
 mod shooter;
+mod spritesheet;
 
 use std::env;
 use std::path;

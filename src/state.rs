@@ -8,7 +8,10 @@ use rand_distr::StandardNormal;
 use uuid::Uuid;
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::io::Read;
+use std::str;
 
+use crate::spritesheet::SpriteSheetData;
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
 
 const ENEMIES: (u8,u8) = (7, 3);
@@ -38,6 +41,8 @@ pub struct State {
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
     status: Option<&'static str>,
+    sprite_sheet_data: SpriteSheetData,
+    sprite_sheet: SpriteBatch,
     spritebatch_player: SpriteBatch,
     spritebatch_bullet: SpriteBatch,
     spritebatch_enemy: SpriteBatch
@@ -45,6 +50,13 @@ pub struct State {
 
 impl State {
     pub fn new(ctx: &mut Context) -> GameResult<State> {
+        let mut buffer = Vec::new();
+        //load sprite sheet information from texturepacker json using serde
+        let mut sprite_sheet_data_file = filesystem::open(ctx, "/spaceship_sprites.json")?;
+        sprite_sheet_data_file.read_to_end(&mut buffer)?;
+        let sprite_sheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
+        //print out info about the first sprite as a test
+        //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
         let mut state = State {
             player: Player::new(),
             bullets: HashMap::new(),
@@ -56,6 +68,8 @@ impl State {
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
             status: None,
+            sprite_sheet_data: sprite_sheet_data,
+            sprite_sheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap()),
             spritebatch_player: SpriteBatch::new(Image::new(ctx, "/player.png").unwrap()),
             spritebatch_bullet: SpriteBatch::new(Image::new(ctx, "/bullet.png").unwrap()),
             spritebatch_enemy: SpriteBatch::new(Image::new(ctx, "/enemy.png").unwrap())
@@ -214,8 +228,8 @@ impl State {
 
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        //only print out periodically
-        if timer::ticks(ctx) % 50 == 0 {
+        //only print out periodically, one iteration per one frame, assuming 1fps
+        while timer::check_update_time(ctx, 1) {
             if SHOW_FRAMERATE {
                 println!("Average FPS: {}, #Bullets: {}", timer::fps(ctx), self.bullets.len()+self.enemy_bullets.len());
             }

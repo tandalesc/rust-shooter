@@ -1,0 +1,92 @@
+{"frames": {
+
+"Spaceships/1":
+{
+	"frame": {"x":295,"y":300,"w":289,"h":274},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":6,"y":16,"w":289,"h":274},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/2":
+{
+	"frame": {"x":293,"y":0,"w":266,"h":300},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":18,"y":0,"w":266,"h":300},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/3":
+{
+	"frame": {"x":0,"y":300,"w":295,"h":284},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":4,"y":7,"w":295,"h":284},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/4":
+{
+	"frame": {"x":559,"y":0,"w":262,"h":300},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":21,"y":0,"w":262,"h":300},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/5":
+{
+	"frame": {"x":584,"y":300,"w":295,"h":273},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":2,"y":18,"w":295,"h":273},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/6":
+{
+	"frame": {"x":1162,"y":293,"w":290,"h":299},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":5,"y":1,"w":290,"h":299},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/7":
+{
+	"frame": {"x":1162,"y":0,"w":300,"h":293},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":4,"w":300,"h":293},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/8":
+{
+	"frame": {"x":879,"y":300,"w":283,"h":253},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":8,"y":25,"w":283,"h":253},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/9":
+{
+	"frame": {"x":0,"y":0,"w":293,"h":300},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":4,"y":0,"w":293,"h":300},
+	"sourceSize": {"w":300,"h":300}
+},
+"Spaceships/10":
+{
+	"frame": {"x":821,"y":0,"w":247,"h":300},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":28,"y":0,"w":247,"h":300},
+	"sourceSize": {"w":300,"h":300}
+}},
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "spaceship_sprites.png",
+	"format": "RGBA8888",
+	"size": {"w":1462,"h":592},
+	"scale": "0.25",
+	"smartupdate": "$TexturePacker:SmartUpdate:b676d3218ffb6c327bd5916c4655a5c1:ac9476466b5c2df2b819d4e983d45621:5908c680265df278552afc2c2c7cd77f$"
+}
+}
