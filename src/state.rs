@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::str;
 
-use crate::spritesheet::SpriteSheetData;
+use crate::spritesheet::{SpriteSheetAnimation, SpriteSheetData};
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
 
 const ENEMIES: (u8,u8) = (7, 3);
@@ -33,6 +33,8 @@ pub struct State {
     enemy_bullets: Vec<Bullet>,
     enemies: Vec<Enemy>,
     stars: Vec<Star>,
+    enemy_animation: SpriteSheetAnimation,
+    player_animation: SpriteSheetAnimation,
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
     status: Option<&'static str>,
@@ -55,6 +57,25 @@ impl State {
             enemy_bullets: Vec::new(),
             enemies: Vec::new(),
             stars: Vec::new(),
+            enemy_animation: SpriteSheetAnimation::new(
+                vec![
+                    "enemy/3".to_string(),
+                    "enemy/4".to_string()
+                ],
+                500.0
+            ),
+            player_animation: SpriteSheetAnimation::new(
+                vec![
+                    "player/1".to_string(),
+                    "player/3".to_string(),
+                    "player/2".to_string(),
+                    "player/4".to_string(),
+                    "player/7".to_string(),
+                    "player/6".to_string(),
+                    "player/5".to_string(),
+                ],
+                200.0
+            ),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
             status: None,
@@ -223,6 +244,11 @@ impl EventHandler for State {
         //spawn stars
         self.handle_background(ctx)?;
 
+        //update animations
+        let timer_delta = timer::delta(ctx).as_millis() as f32;
+        self.enemy_animation.time_tick(timer_delta);
+        self.player_animation.time_tick(timer_delta);
+
         //handle player movement
         self.player.physics();
         //level up
@@ -254,7 +280,7 @@ impl EventHandler for State {
             .scale(sprite_scale);
 
         //render player bullets
-        let bullet_spr_info = self.spritesheet_data.frames.get("energy_blast").unwrap().frame.to_rect_f32();
+        let bullet_spr_info = self.spritesheet_data.frames.get("bullet").unwrap().frame.to_rect_f32();
         let adjusted_bullet_spr_info = Rect::fraction(
             bullet_spr_info.x,
             bullet_spr_info.y,
@@ -262,13 +288,14 @@ impl EventHandler for State {
             bullet_spr_info.h,
             &spritesheet_rect
         );
-        let player_bullet_color = Color::new(0.4,0.4,1.0,1.0);
+        let player_bullet_color = Color::new(0.5,0.5,1.2,1.0);
         for bullet in &mut self.bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
                     .src(adjusted_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .color(player_bullet_color)
+                    .rotation(bullet.angle)
+                    //.color(player_bullet_color)
             );
             //draw hitboxes for debugging
             if SHOW_HITBOXES {
@@ -280,13 +307,14 @@ impl EventHandler for State {
             }
         }
         //render enemy bullets
-        let enemy_bullet_color = Color::new(0.8,0.1,0.1,1.0);
+        let enemy_bullet_color = Color::new(1.0,0.3,0.3,1.0);
         for bullet in &mut self.enemy_bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
                     .src(adjusted_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .color(enemy_bullet_color)
+                    .rotation(bullet.angle)
+                    //.color(enemy_bullet_color)
             );
             //draw hitboxes for debugging
             if SHOW_HITBOXES {
@@ -299,7 +327,8 @@ impl EventHandler for State {
         }
 
         //render enemies
-        let enemy_spr_info = self.spritesheet_data.frames.get("spaceship_1").unwrap().frame.to_rect_f32();
+        let enemy_sprite = self.enemy_animation.get_frame();
+        let enemy_spr_info = self.spritesheet_data.frames.get(enemy_sprite).unwrap().frame.to_rect_f32();
         let adjusted_enemy_sprite_coor = Rect::fraction(
             enemy_spr_info.x,
             enemy_spr_info.y,
@@ -327,8 +356,12 @@ impl EventHandler for State {
             }
         }
         //render player
-        let player_spaceship = format!("spaceship_{}", self.player.current_weapon_idx+2);
-        let player_spr_info = self.spritesheet_data.frames.get(&player_spaceship).unwrap().frame.to_rect_f32();
+        let player_spaceship = if self.player.velocity.norm() < 0.1 {
+            "player/0"
+        } else {
+            self.player_animation.get_frame()
+        };
+        let player_spr_info = self.spritesheet_data.frames.get(player_spaceship).unwrap().frame.to_rect_f32();
         let adjusted_enemy_sprite_coor = Rect::fraction(
             player_spr_info.x,
             player_spr_info.y,
@@ -379,7 +412,7 @@ impl EventHandler for State {
         let hud_health_position = Point2::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
         let hud_health_outline_rect = Rect::new(hud_health_position.x, hud_health_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
         let hud_health_rect = Rect::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.health/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_health_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(1.2), hud_health_outline_rect, Color::new(1.0, 0.0, 0.0, 0.8))?;
+        let hud_health_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(2.0), hud_health_outline_rect, Color::new(1.0, 0.0, 0.0, 0.8))?;
         let hud_health_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_health_rect, Color::new(1.0, 0.0, 0.0, 0.3))?;
         graphics::draw(ctx, &hud_health_outline, DrawParam::default())?;
         graphics::draw(ctx, &hud_health_filled, DrawParam::default())?;
@@ -388,7 +421,7 @@ impl EventHandler for State {
         let hud_exp_position = Point2::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
         let hud_exp_outline_rect = Rect::new(hud_exp_position.x, hud_exp_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
         let hud_exp_rect = Rect::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.experience/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_exp_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(1.2), hud_exp_outline_rect, Color::new(0.0, 1.0, 0.0, 0.8))?;
+        let hud_exp_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(2.0), hud_exp_outline_rect, Color::new(0.0, 1.0, 0.0, 0.8))?;
         let hud_exp_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_exp_rect, Color::new(0.0, 1.0, 0.0, 0.3))?;
         graphics::draw(ctx, &hud_exp_outline, DrawParam::default())?;
         graphics::draw(ctx, &hud_exp_filled, DrawParam::default())?;

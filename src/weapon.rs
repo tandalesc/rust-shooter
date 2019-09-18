@@ -51,15 +51,15 @@ impl MachineGun {
     pub fn new() -> MachineGun {
         MachineGun {
             level: 0,
-            fire_rate: 10,
+            fire_rate: 9,
             fire_offset: 3.0,
-            bullet_speed: 5.0,
+            bullet_speed: 5.5,
             bullet_damage: 5.0
         }
     }
     pub fn level_up(&mut self) {
         self.level += 1;
-        self.fire_rate = (10-self.level/2).max(3);
+        self.fire_rate = (9-self.level/2).max(3);
         self.bullet_speed = 5.0+(self.level as f32)*1.5;
     }
     pub fn fire(&self, shooter: &Player) -> Vec<Bullet> {
@@ -99,8 +99,8 @@ impl WideGun {
         let num_bullets = self.num_bullets as i32;
         let (lower_bound, upper_bound) = (-num_bullets/2, num_bullets/2+1);
         for bullet_num in lower_bound..upper_bound {
-            let velocity_x = (bullet_num as f32)*0.4;
-            let offset_x = (bullet_num as f32)*10.0;
+            let velocity_x = (bullet_num as f32)*0.45;
+            let offset_x = (bullet_num as f32)*12.0;
             let offset_y = (bullet_num as f32).powf(2.0)*0.6-1.0;
             let velocity = Vector2::new(velocity_x, -self.bullet_speed);
             let offset = Vector2::new(offset_x, offset_y+self.fire_offset);

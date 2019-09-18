@@ -1,100 +1,132 @@
 {"frames": {
 
-"energy_blast":
+"bullet":
 {
-	"frame": {"x":556,"y":862,"w":30,"h":30},
+	"frame": {"x":1792,"y":0,"w":64,"h":64},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":30,"h":30},
-	"sourceSize": {"w":30,"h":30}
+	"spriteSourceSize": {"x":0,"y":0,"w":64,"h":64},
+	"sourceSize": {"w":64,"h":64}
 },
-"spaceship_1":
+"enemy/0":
 {
-	"frame": {"x":297,"y":1166,"w":294,"h":276},
+	"frame": {"x":0,"y":0,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":3,"y":14,"w":294,"h":276},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_2":
+"enemy/1":
 {
-	"frame": {"x":303,"y":258,"w":270,"h":300},
+	"frame": {"x":0,"y":256,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":16,"y":0,"w":270,"h":300},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_3":
+"enemy/2":
 {
-	"frame": {"x":1,"y":299,"w":299,"h":286},
+	"frame": {"x":256,"y":0,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":1,"y":5,"w":299,"h":286},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_4":
+"enemy/3":
 {
-	"frame": {"x":302,"y":560,"w":266,"h":300},
+	"frame": {"x":256,"y":256,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":19,"y":0,"w":266,"h":300},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_5":
+"enemy/4":
 {
-	"frame": {"x":1,"y":587,"w":299,"h":275},
+	"frame": {"x":512,"y":0,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":0,"y":16,"w":299,"h":275},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_6":
+"player/0":
 {
-	"frame": {"x":1,"y":1166,"w":294,"h":300},
+	"frame": {"x":512,"y":256,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":3,"y":0,"w":294,"h":300},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_7":
+"player/1":
 {
-	"frame": {"x":1,"y":1,"w":300,"h":296},
+	"frame": {"x":768,"y":0,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":0,"y":2,"w":300,"h":296},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_8":
+"player/2":
 {
-	"frame": {"x":303,"y":1,"w":287,"h":255},
+	"frame": {"x":768,"y":256,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":6,"y":23,"w":287,"h":255},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_9":
+"player/3":
 {
-	"frame": {"x":1,"y":864,"w":298,"h":300},
+	"frame": {"x":1024,"y":0,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":2,"y":0,"w":298,"h":300},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 },
-"spaceship_10":
+"player/4":
 {
-	"frame": {"x":302,"y":862,"w":252,"h":300},
+	"frame": {"x":1024,"y":256,"w":256,"h":256},
 	"rotated": false,
-	"trimmed": true,
-	"spriteSourceSize": {"x":25,"y":0,"w":252,"h":300},
-	"sourceSize": {"w":300,"h":300}
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
+},
+"player/5":
+{
+	"frame": {"x":1280,"y":0,"w":256,"h":256},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
+},
+"player/6":
+{
+	"frame": {"x":1280,"y":256,"w":256,"h":256},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
+},
+"player/7":
+{
+	"frame": {"x":1536,"y":0,"w":256,"h":256},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
+},
+"player/8":
+{
+	"frame": {"x":1536,"y":256,"w":256,"h":256},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
+	"sourceSize": {"w":256,"h":256}
 }},
 "meta": {
 	"app": "https://www.codeandweb.com/texturepacker",
 	"version": "1.0",
 	"image": "spaceship_sprites.png",
 	"format": "RGBA8888",
-	"size": {"w":592,"h":1467},
-	"scale": "1",
-	"smartupdate": "$TexturePacker:SmartUpdate:af25815d82a118ea65b82e8370cf3518:fd260d056141a088aff91725aa3eb0c8:5908c680265df278552afc2c2c7cd77f$"
+	"size": {"w":1856,"h":512},
+	"scale": "0.5",
+	"smartupdate": "$TexturePacker:SmartUpdate:2664305f45183f068c0629ee6741b39a:678d1f72a99361efeda586febcf3c676:5908c680265df278552afc2c2c7cd77f$"
 }
 }
