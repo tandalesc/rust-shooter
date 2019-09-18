@@ -127,6 +127,7 @@ pub struct Enemy {
     pub size: f32,
     pub health: f32,
     pub flash_frames: i32,
+    pub alive: bool,
     pub hitbox_tree: HitboxTree
 }
 impl Enemy {
@@ -138,6 +139,7 @@ impl Enemy {
             size: size,
             health: 80.0,
             flash_frames: 0,
+            alive: true,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(position, size)) //root
                     /( tr(Hitbox::new(position+Vector2::new(2.0*size/12.0, size/3.0), Vector2::new(8.0*size/12.0, 2.0*size/3.0 - size/12.0))) )
@@ -171,6 +173,7 @@ pub struct Bullet {
     pub angle: f32,
     pub size: f32,
     pub damage: f32,
+    pub alive: bool,
     pub hitbox_tree: HitboxTree
 }
 impl Bullet {
@@ -185,6 +188,7 @@ impl Bullet {
             angle: velocity.x.atan2(-velocity.y),
             size: bullet_size,
             damage: damage,
+            alive: true,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new(pos+Vector2::new(bullet_size/8.0, bullet_size/8.0), Vector2::new(3.0*bullet_size/4.0, 3.0*bullet_size/4.0)))
             )

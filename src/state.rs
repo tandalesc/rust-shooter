@@ -5,9 +5,7 @@ use ggez::*;
 use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::StandardNormal;
-use uuid::Uuid;
 use std::collections::HashSet;
-use std::collections::HashMap;
 use std::io::Read;
 use std::str;
 
@@ -31,12 +29,10 @@ const SHOW_HITBOXES: bool = false;
 
 pub struct State {
     player: Player,
-    bullets: HashMap<Uuid, Bullet>,
-    enemy_bullets: HashMap<Uuid, Bullet>,
-    enemies: HashMap<Uuid, Enemy>,
-    stars: HashMap<Uuid, Star>,
-    bullet_ids: HashSet<Uuid>,
-    enemy_ids: HashSet<Uuid>,
+    bullets: Vec<Bullet>,
+    enemy_bullets: Vec<Bullet>,
+    enemies: Vec<Enemy>,
+    stars: Vec<Star>,
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
     status: Option<&'static str>,
@@ -55,12 +51,10 @@ impl State {
         //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
         let mut state = State {
             player: Player::new(),
-            bullets: HashMap::new(),
-            enemy_bullets: HashMap::new(),
-            enemies: HashMap::new(),
-            stars: HashMap::new(),
-            bullet_ids: HashSet::new(),
-            enemy_ids: HashSet::new(),
+            bullets: Vec::new(),
+            enemy_bullets: Vec::new(),
+            enemies: Vec::new(),
+            stars: Vec::new(),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
             status: None,
@@ -71,8 +65,7 @@ impl State {
         //todo: refactor into it's own method so we can generate enemies on the fly
         for x in 0..ENEMIES.0 {
             for y in 0..ENEMIES.1 {
-                state.enemies.insert(
-                    Uuid::new_v4(),
+                state.enemies.push(
                     Enemy::new(
                         Point2::new(80.0, 50.0) +
                         (x as f32)*Vector2::new(110.0, 0.0) +
@@ -106,7 +99,9 @@ impl State {
                 }
                 KeyCode::Space => {
                     if self.player.bullet_spacing==0 {
-                        for bullet in self.player.shoot() { self.bullets.insert(Uuid::new_v4(), bullet); }
+                        for bullet in self.player.shoot() {
+                            self.bullets.push(bullet);
+                        }
                         self.player.bullet_spacing = self.player.get_weapon().get_fire_rate();
                     }
                 }
@@ -120,49 +115,41 @@ impl State {
     }
     fn handle_bullets(&mut self, _ctx: &mut Context) -> GameResult<()> {
         //check player bullets and enemies for collisions
-        for (bullet_id, bullet) in &mut self.bullets {
+        for bullet in &mut self.bullets {
             //apply physics to player bullets
             bullet.physics();
-            for (_, enemy) in &mut self.enemies {
+            for enemy in &mut self.enemies {
                 if bullet.collides_with(enemy) {
                     //mark bullet for deletion
-                    self.bullet_ids.insert(*bullet_id);
+                    bullet.alive = false;
                     //do damage
                     enemy.health -= bullet.damage;
                     enemy.flash_frames = 5;
-                } else if bullet.is_off_screen() {
-                    //mark bullet for deletion
-                    self.bullet_ids.insert(*bullet_id);
                 }
             }
         }
+        self.bullets.retain(|bullet| bullet.alive && !bullet.is_off_screen());
+
         //check enemy bullets and player for collisions
-        for (bullet_id, bullet) in &mut self.enemy_bullets {
+        for bullet in &mut self.enemy_bullets {
             //apply physics to enemy bullets
             bullet.physics();
             //only check for collisions if player is not invincible
             if self.player.invincibility_frames==0 && bullet.collides_with(&self.player) {
                 //mark bullet for deletion
-                self.bullet_ids.insert(*bullet_id);
+                 bullet.alive = false;
                 //do damage
                 self.player.health -= bullet.damage;
                 self.player.invincibility_frames = PLAYER_INVINCIBILITY;
-            } else if bullet.is_off_screen() {
-                //mark bullet for deletion
-                self.bullet_ids.insert(*bullet_id);
             }
         }
-        //remove any bullets that were marked for deletion
-        for id in &self.bullet_ids {
-            self.bullets.remove(id);
-            self.enemy_bullets.remove(id);
-        }
-        self.bullet_ids.clear();
+        self.enemy_bullets.retain(|bullet| bullet.alive && !bullet.is_off_screen());
+
         Ok(())
     }
     fn handle_enemies(&mut self, _ctx: &mut Context) -> GameResult<()> {
         let num_enemies = self.enemies.len();
-        for (enemy_id, enemy) in &mut self.enemies {
+        for enemy in &mut self.enemies {
             enemy.physics();
             //scale shooting chance with number of enemies
             //more enemies = each one shoots less frequently
@@ -179,7 +166,7 @@ impl State {
                 let normal_sample: f32 = self.rng.sample(StandardNormal);
                 let noise = self.player.size/2.0 * normal_sample * (1.0-accuracy) * Vector2::new(1.0,1.0);
                 let velocity = (direction + noise).normalize()*3.0;
-                self.enemy_bullets.insert(Uuid::new_v4(), Bullet::new(enemy, velocity, Some(offset), 10.0));
+                self.enemy_bullets.push(Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
             //only check for collisions if player is not invincible
             if self.player.invincibility_frames==0 && enemy.collides_with(&self.player) {
@@ -188,13 +175,12 @@ impl State {
             }
             if enemy.health <= 0.0 {
                 //mark enemy for removal and add experience to player
-                self.enemy_ids.insert(*enemy_id);
+                enemy.alive = false;
                 self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().get_level() as f32);
             }
         }
         //remove any enemies that died
-        for id in &self.enemy_ids { self.enemies.remove(id); };
-        self.enemy_ids.clear();
+        self.enemies.retain(|enemy| enemy.alive);
         Ok(())
     }
     fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
@@ -209,12 +195,12 @@ impl State {
             let random_size = 1.0 + 0.5 * normal_sample.abs();
             let velocity = Vector2::new(0.0, 0.3 + 0.3*normal_sample_2 + 0.3*normal_sample.abs());
             //insert our new star into the collection
-            self.stars.insert(Uuid::new_v4(), Star::new(random_position, velocity, random_size, normal_sample_2));
+            self.stars.push(Star::new(random_position, velocity, random_size, normal_sample_2));
         }
         //apply physics to existing stars
-        for (_, star) in &mut self.stars { star.physics(); };
+        for star in &mut self.stars { star.physics(); };
         //delete stars that are off-screen
-        self.stars.retain(|_, star| !star.is_off_screen());
+        self.stars.retain(|star| !star.is_off_screen());
         Ok(())
     }
 }
@@ -277,7 +263,7 @@ impl EventHandler for State {
             &spritesheet_rect
         );
         let player_bullet_color = Color::new(0.4,0.4,1.0,1.0);
-        for (_, bullet) in &mut self.bullets {
+        for bullet in &mut self.bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
                     .src(adjusted_bullet_spr_info)
@@ -295,7 +281,7 @@ impl EventHandler for State {
         }
         //render enemy bullets
         let enemy_bullet_color = Color::new(0.8,0.1,0.1,1.0);
-        for (_, bullet) in &mut self.enemy_bullets {
+        for bullet in &mut self.enemy_bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
                     .src(adjusted_bullet_spr_info)
@@ -321,7 +307,7 @@ impl EventHandler for State {
             enemy_spr_info.h,
             &spritesheet_rect
         );
-        for (_, enemy) in &mut self.enemies {
+        for enemy in &mut self.enemies {
             let mut enemy_draw_param = spritesheet_draw_params
                 .src(adjusted_enemy_sprite_coor)
                 .rotation(std::f32::consts::PI)
@@ -368,7 +354,7 @@ impl EventHandler for State {
         }
 
         //build background layer
-        for (_, star) in &mut self.stars {
+        for star in &mut self.stars {
             let dim = star.brightness*0.8;
             background_meshbuilder.circle(DrawMode::fill(), star.position, star.size, 1.0, Color::new(dim, dim, dim, 1.0));
         }
