@@ -171,7 +171,7 @@ impl State {
             enemy.physics();
             //scale shooting chance with number of enemies
             //more enemies = each one shoots less frequently
-            let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies/self.stage;
+            let scaled_enemy_shoot_chance = (ENEMY_SHOOT_CHANCE*num_enemies*num_enemies/self.stage).max(1);
             if self.game_running && self.no_attack_timer==0 && self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
                 let offset = Vector2::new(0.0, 20.0);
                 //bullets go towards player
