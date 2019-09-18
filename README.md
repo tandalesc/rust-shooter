@@ -12,8 +12,9 @@ performant games. As a result, this is not designed to be a complete, user-
 friendly game; there may be bugs or some features that do not work perfectly.
 
 ## Features
-- Hundreds of bullets on screen at 60fps
+- Thousands of entities on screen at 60fps
 - Upgradeable and switchable weapon types
+- Goes on virtually forever; infinitely scaling difficulty
 
 ## Interface
 You can develop and build Rust-Shooter like any other Rust application.

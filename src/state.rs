@@ -39,6 +39,9 @@ pub struct State {
     player_animation: SpriteSheetAnimation,
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
+    stage: usize,
+    no_attack_timer: usize,
+    game_running: bool,
     status: Option<&'static str>,
     spritesheet_data: SpriteSheetData,
     spritebatch_spritesheet: SpriteBatch
@@ -53,7 +56,7 @@ impl State {
         let spritesheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
         //print out info about the first sprite as a test
         //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
-        let mut state = State {
+        let state = State {
             player: Player::new(),
             bullets: Vec::new(),
             enemy_bullets: Vec::new(),
@@ -82,23 +85,13 @@ impl State {
             ),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
+            stage: 0,
+            no_attack_timer: 0,
+            game_running: true,
             status: None,
             spritesheet_data: spritesheet_data,
             spritebatch_spritesheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap())
         };
-        //generate a grid of enemies
-        //todo: refactor into it's own method so we can generate enemies on the fly
-        for x in 0..ENEMIES.0 {
-            for y in 0..ENEMIES.1 {
-                state.enemies.push(
-                    Enemy::new(
-                        Point2::new(80.0, 50.0) +
-                        (x as f32)*Vector2::new(110.0, 0.0) +
-                        (y as f32)*Vector2::new(0.0, 100.0)
-                    )
-                );
-            }
-        }
         Ok(state)
     }
     fn handle_keys(&mut self, ctx: &mut Context) -> GameResult<()> {
@@ -123,7 +116,7 @@ impl State {
                     }
                 }
                 KeyCode::Space => {
-                    if self.player.bullet_spacing==0 {
+                    if self.player.bullet_spacing==0 && self.no_attack_timer==0 {
                         for bullet in self.player.shoot() {
                             self.bullets.push(bullet);
                         }
@@ -144,7 +137,7 @@ impl State {
             //apply physics to player bullets
             bullet.physics();
             for enemy in &mut self.enemies {
-                if bullet.collides_with(enemy) {
+                if self.no_attack_timer==0 && bullet.collides_with(enemy) {
                     //mark bullet for deletion
                     bullet.alive = false;
                     //do damage
@@ -160,7 +153,7 @@ impl State {
             //apply physics to enemy bullets
             bullet.physics();
             //only check for collisions if player is not invincible
-            if self.player.invincibility_frames==0 && bullet.collides_with(&self.player) {
+            if self.player.invincibility_frames==0 && self.no_attack_timer==0 && bullet.collides_with(&self.player) {
                 //mark bullet for deletion
                  bullet.alive = false;
                 //do damage
@@ -178,12 +171,11 @@ impl State {
             enemy.physics();
             //scale shooting chance with number of enemies
             //more enemies = each one shoots less frequently
-            let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies;
-            if self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
+            let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies/self.stage;
+            if self.game_running && self.no_attack_timer==0 && self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
                 let offset = Vector2::new(0.0, 20.0);
                 //bullets go towards player
                 let direction = self.player.position - enemy.position;
-                //norm_squared is cheaper, and we want more sensivity anyway
                 let dist = direction.norm();
                 //add some noise so the enemies aren't always sniping us
                 //but their accuracy goes up as they get closer
@@ -194,7 +186,7 @@ impl State {
                 self.enemy_bullets.push(Bullet::new(enemy, velocity, Some(offset), 10.0));
             }
             //only check for collisions if player is not invincible
-            if self.player.invincibility_frames==0 && enemy.collides_with(&self.player) {
+            if self.player.invincibility_frames==0 && self.no_attack_timer==0 && enemy.collides_with(&self.player) {
                 self.player.health -= 20.0;
                 self.player.invincibility_frames = PLAYER_INVINCIBILITY;
             }
@@ -242,6 +234,11 @@ impl EventHandler for State {
                 println!("Average FPS: {}, #Bullets: {}", timer::fps(ctx), self.bullets.len()+self.enemy_bullets.len());
             }
         }
+        if self.no_attack_timer>0 {
+            while timer::check_update_time(ctx, 60) && self.no_attack_timer>0 {
+                self.no_attack_timer -= 1;
+            }
+        }
 
         //better handle key presses and releases
         self.handle_keys(ctx)?;
@@ -266,12 +263,27 @@ impl EventHandler for State {
         }
 
         //win states
-        if self.enemies.len() == 0 {
-            self.status = Some("you win!");
+        if self.game_running && self.enemies.len()==0 {
+            //increment stage counter
+            self.stage += 1;
+            self.no_attack_timer = 200;
+            //generate a grid of enemies
+            for x in 0..ENEMIES.0 {
+                for y in 0..ENEMIES.1 {
+                    self.enemies.push(
+                        Enemy::new(
+                            Point2::new(80.0, 50.0) +
+                            (x as f32)*Vector2::new(110.0, 0.0) +
+                            (y as f32)*Vector2::new(0.0, 100.0)
+                        )
+                    );
+                }
+            }
         }
         //lose states
-        if self.player.health <= 0.0 {
+        if self.game_running && self.player.health <= 0.0 {
             self.status = Some("game over");
+            self.game_running = false;
         }
         Ok(())
     }
@@ -378,7 +390,9 @@ impl EventHandler for State {
         let mut player_draw_param = spritesheet_draw_params
             .src(adjusted_enemy_sprite_coor)
             .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
-        if self.player.invincibility_frames>0 && self.player.invincibility_frames/(PLAYER_INVINCIBILITY/10)%2==0 {
+        let flash_player_when_invincible = self.player.invincibility_frames>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
+        let flash_player_no_attack_allowed = self.no_attack_timer>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
+        if flash_player_when_invincible || flash_player_no_attack_allowed {
             //flash player when invincible
             player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.1));
         }
@@ -433,11 +447,19 @@ impl EventHandler for State {
         graphics::draw(ctx, &hud_exp_filled, DrawParam::default())?;
 
         //health information
-        let health_text = Text::new(TextFragment::new(format!("health: {}",self.player.health)));
+        let health_text = Text::new(TextFragment::new(format!("health: {}/100",self.player.health)));
         graphics::draw(ctx, &health_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, hud_health_position.y+10.0)))?;
         //weapon information
         let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().get_info()));
         graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(hud_exp_position.x+10.0, hud_exp_position.y+10.0)))?;
+        //current stage
+        let stage_text_display = if self.no_attack_timer>0 {
+            format!("timer: {}", self.no_attack_timer)
+        } else {
+            format!("stage: {}",self.stage)
+        };
+        let stage_text = Text::new(TextFragment::new(stage_text_display));
+        graphics::draw(ctx, &stage_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, 10.0)))?;
         //status text
         if let Some(status_text) = self.status {
             let text = Text::new(TextFragment::new(status_text));

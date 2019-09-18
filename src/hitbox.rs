@@ -81,12 +81,12 @@ impl HitboxTree {
                     self_queue.pop_front();
                 }
             } else {
-                //if self_node is a leaf node, then throw it away and explore the next node
-                if self_node.is_leaf() {
-                    self_queue.pop_front();
-                } else {
-                    //otherwise, throw away the other node and explore what's next
+                //preferentially explore the children of the other object
+                if other_queue.len()>1 {
                     other_queue.pop_front();
+                } else {
+                    //if there are no more objects in self_queue after this, then the comparison failed
+                    self_queue.pop_front();
                 }
             }
         }
