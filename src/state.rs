@@ -24,8 +24,7 @@ const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
 pub const FRICTION: f32 = 0.1;
 
 pub const DISPLAY_RESOLUTION: (f32, f32) = (920.0, 690.0);
-pub const INTERNAL_RESOLUTION: (f32, f32) = (640.0, 480.0);
-pub const SCALED_RESOLUTION: (f32, f32) = (DISPLAY_RESOLUTION.0/INTERNAL_RESOLUTION.0, DISPLAY_RESOLUTION.1/INTERNAL_RESOLUTION.1);
+pub const INTERNAL_RESOLUTION: (f32, f32) = (920.0, 690.0);
 
 const SHOW_FRAMERATE: bool = false;
 const SHOW_HITBOXES: bool = false;
@@ -41,20 +40,17 @@ pub struct State {
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
     status: Option<&'static str>,
-    sprite_sheet_data: SpriteSheetData,
-    sprite_sheet: SpriteBatch,
-    spritebatch_player: SpriteBatch,
-    spritebatch_bullet: SpriteBatch,
-    spritebatch_enemy: SpriteBatch
+    spritesheet_data: SpriteSheetData,
+    spritebatch_spritesheet: SpriteBatch
 }
 
 impl State {
     pub fn new(ctx: &mut Context) -> GameResult<State> {
         let mut buffer = Vec::new();
         //load sprite sheet information from texturepacker json using serde
-        let mut sprite_sheet_data_file = filesystem::open(ctx, "/spaceship_sprites.json")?;
-        sprite_sheet_data_file.read_to_end(&mut buffer)?;
-        let sprite_sheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
+        let mut spritesheet_data_file = filesystem::open(ctx, "/spaceship_sprites.json")?;
+        spritesheet_data_file.read_to_end(&mut buffer)?;
+        let spritesheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
         //print out info about the first sprite as a test
         //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
         let mut state = State {
@@ -68,11 +64,8 @@ impl State {
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
             status: None,
-            sprite_sheet_data: sprite_sheet_data,
-            sprite_sheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap()),
-            spritebatch_player: SpriteBatch::new(Image::new(ctx, "/player.png").unwrap()),
-            spritebatch_bullet: SpriteBatch::new(Image::new(ctx, "/bullet.png").unwrap()),
-            spritebatch_enemy: SpriteBatch::new(Image::new(ctx, "/enemy.png").unwrap())
+            spritesheet_data: spritesheet_data,
+            spritebatch_spritesheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap())
         };
         //generate a grid of enemies
         //todo: refactor into it's own method so we can generate enemies on the fly
@@ -82,8 +75,8 @@ impl State {
                     Uuid::new_v4(),
                     Enemy::new(
                         Point2::new(80.0, 50.0) +
-                        (x as f32)*Vector2::new(70.0, 0.0) +
-                        (y as f32)*Vector2::new(0.0, 70.0)
+                        (x as f32)*Vector2::new(110.0, 0.0) +
+                        (y as f32)*Vector2::new(0.0, 100.0)
                     )
                 );
             }
@@ -206,7 +199,7 @@ impl State {
     }
     fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
         //spawn stars occasionally
-        if self.rng.gen_range(0.0, 1.0)<0.3 {
+        if self.rng.gen_range(0.0, 1.0)<0.03 {
             //position is sampled uniformly across X-axis
             let random_position = Point2::new(self.rng.gen_range(0.0, DISPLAY_RESOLUTION.0), 0.0);
             //generate some random numbers to calculate size, velocity, and brightness with
@@ -266,17 +259,30 @@ impl EventHandler for State {
         graphics::clear(ctx, graphics::BLACK);
         let mut background_meshbuilder = MeshBuilder::new();
         let mut hitbox_meshbuilder = MeshBuilder::new();
-        let window_scaler = Vector2::new(SCALED_RESOLUTION.0, SCALED_RESOLUTION.1);
-        let sprite_draw_params = DrawParam::default().scale(window_scaler);
+
+        let spritesheet_rect = self.spritesheet_data.meta.size.to_rect_f32();
+        let halfway_point = Point2::new(0.5, 0.5);
+        let sprite_scale = Vector2::new(0.30, 0.30);
+        let spritesheet_draw_params = DrawParam::default()
+            .offset(halfway_point)
+            .scale(sprite_scale);
 
         //render player bullets
+        let bullet_spr_info = self.spritesheet_data.frames.get("energy_blast").unwrap().frame.to_rect_f32();
+        let adjusted_bullet_spr_info = Rect::fraction(
+            bullet_spr_info.x,
+            bullet_spr_info.y,
+            bullet_spr_info.w,
+            bullet_spr_info.h,
+            &spritesheet_rect
+        );
+        let player_bullet_color = Color::new(0.4,0.4,1.0,1.0);
         for (_, bullet) in &mut self.bullets {
-            self.spritebatch_bullet.add(
-                //rotate bullets in the direction of movement
-                DrawParam::default()
+            self.spritebatch_spritesheet.add(
+                spritesheet_draw_params
+                    .src(adjusted_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .offset(Point2::new(0.5, 0.5))
-                    .rotation(bullet.angle)
+                    .color(player_bullet_color)
             );
             //draw hitboxes for debugging
             if SHOW_HITBOXES {
@@ -288,13 +294,13 @@ impl EventHandler for State {
             }
         }
         //render enemy bullets
+        let enemy_bullet_color = Color::new(0.8,0.1,0.1,1.0);
         for (_, bullet) in &mut self.enemy_bullets {
-            self.spritebatch_bullet.add(
-                //rotate bullets in the direction of movement
-                DrawParam::default()
+            self.spritebatch_spritesheet.add(
+                spritesheet_draw_params
+                    .src(adjusted_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .offset(Point2::new(0.5, 0.5))
-                    .rotation(bullet.angle)
+                    .color(enemy_bullet_color)
             );
             //draw hitboxes for debugging
             if SHOW_HITBOXES {
@@ -307,13 +313,24 @@ impl EventHandler for State {
         }
 
         //render enemies
+        let enemy_spr_info = self.spritesheet_data.frames.get("spaceship_1").unwrap().frame.to_rect_f32();
+        let adjusted_enemy_sprite_coor = Rect::fraction(
+            enemy_spr_info.x,
+            enemy_spr_info.y,
+            enemy_spr_info.w,
+            enemy_spr_info.h,
+            &spritesheet_rect
+        );
         for (_, enemy) in &mut self.enemies {
-            let mut enemy_draw_param = DrawParam::default().dest(enemy.position);
+            let mut enemy_draw_param = spritesheet_draw_params
+                .src(adjusted_enemy_sprite_coor)
+                .rotation(std::f32::consts::PI)
+                .dest(enemy.position + Vector2::new(enemy.size/2.0, enemy.size/2.0));
             if enemy.flash_frames>0 {
                 //flash enemies when hit
                 enemy_draw_param = enemy_draw_param.color(Color::new(3.0, 0.8, 0.8, 1.0));
             }
-            self.spritebatch_enemy.add(enemy_draw_param);
+            self.spritebatch_spritesheet.add(enemy_draw_param);
             //draw hitboxes for debugging
             if SHOW_HITBOXES {
                 for hitbox_visit in enemy.hitbox_tree.bfs_iter() {
@@ -324,12 +341,23 @@ impl EventHandler for State {
             }
         }
         //render player
-        let mut player_draw_param = DrawParam::default().dest(self.player.position);
+        let player_spaceship = format!("spaceship_{}", self.player.current_weapon_idx+2);
+        let player_spr_info = self.spritesheet_data.frames.get(&player_spaceship).unwrap().frame.to_rect_f32();
+        let adjusted_enemy_sprite_coor = Rect::fraction(
+            player_spr_info.x,
+            player_spr_info.y,
+            player_spr_info.w,
+            player_spr_info.h,
+            &spritesheet_rect
+        );
+        let mut player_draw_param = spritesheet_draw_params
+            .src(adjusted_enemy_sprite_coor)
+            .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
         if self.player.invincibility_frames>0 && self.player.invincibility_frames/(PLAYER_INVINCIBILITY/10)%2==0 {
             //flash player when invincible
             player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.1));
         }
-        self.spritebatch_player.add(player_draw_param);
+        self.spritebatch_spritesheet.add(player_draw_param);
         //draw hitboxes for debugging
         if SHOW_HITBOXES {
             for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
@@ -339,29 +367,25 @@ impl EventHandler for State {
             }
         }
 
-        //draw background layer
+        //build background layer
         for (_, star) in &mut self.stars {
             let dim = star.brightness*0.8;
             background_meshbuilder.circle(DrawMode::fill(), star.position, star.size, 1.0, Color::new(dim, dim, dim, 1.0));
         }
 
-
-        graphics::set_default_filter(ctx, graphics::FilterMode::Nearest);
         //draw all accumulated meshes
         if let Ok(mesh) = background_meshbuilder.build(ctx) {
             graphics::draw(ctx, &mesh, DrawParam::default())?;
         }
-        if let Ok(mesh) = hitbox_meshbuilder.build(ctx) {
-            graphics::draw(ctx, &mesh, sprite_draw_params)?;
-        }
-
         //draw sprites, clear spritebatches
-        graphics::draw(ctx, &self.spritebatch_bullet, sprite_draw_params)?;
-        graphics::draw(ctx, &self.spritebatch_enemy, sprite_draw_params)?;
-        graphics::draw(ctx, &self.spritebatch_player, sprite_draw_params)?;
-        self.spritebatch_bullet.clear();
-        self.spritebatch_enemy.clear();
-        self.spritebatch_player.clear();
+        graphics::draw(ctx, &self.spritebatch_spritesheet, DrawParam::default())?;
+        self.spritebatch_spritesheet.clear();
+        //draw hitboxes, if enabled
+        if SHOW_HITBOXES {
+            if let Ok(mesh) = hitbox_meshbuilder.build(ctx) {
+                graphics::draw(ctx, &mesh, DrawParam::default())?;
+            }
+        }
 
         //player hud
         //health

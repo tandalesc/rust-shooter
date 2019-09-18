@@ -42,13 +42,13 @@ pub struct Player {
     pub invincibility_frames: u32,
     pub bullet_spacing: u32,
     weapons: Vec<Weapon>,
-    current_weapon_idx: usize,
+    pub current_weapon_idx: usize,
     pub hitbox_tree: HitboxTree,
 }
 impl Player {
     pub fn new() -> Player {
         let pos = Point2::new(50.0, 400.0);
-        let size = 50.0;
+        let size = 100.0;
         Player {
             position: pos,
             velocity: Vector2::new(0.0, 0.0),
@@ -64,9 +64,7 @@ impl Player {
             current_weapon_idx: 0,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size)) //root
-                    /( tr(Hitbox::new(pos+Vector2::new(size/7.0, size/3.0), Vector2::new(5.0*size/7.0, size/3.0))) ) //fuselage
-                    /( tr(Hitbox::new(pos+Vector2::new(size/20.0, 2.0*size/5.0), Vector2::new(18.0*size/20.0, size/5.0))) ) //wings
-                    /( tr(Hitbox::new(pos+Vector2::new(size/3.0, size/7.0), Vector2::new(size/3.0, 5.0*size/7.0))) ) //engines
+                    /( tr(Hitbox::new(pos+Vector2::new(size/7.0, size/8.0), Vector2::new(5.0*size/7.0, 2.0*size/3.0))) )
             )
         }
     }
@@ -133,17 +131,16 @@ pub struct Enemy {
 }
 impl Enemy {
     pub fn new(position: Point2) -> Enemy {
-        let size = 45.0;
+        let size = 90.0;
         Enemy {
             position: position,
-            velocity: Vector2::new(0.0, 0.04),
+            velocity: Vector2::new(0.0, 0.0),
             size: size,
             health: 80.0,
             flash_frames: 0,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(position, size)) //root
-                    /( tr(Hitbox::new(position+Vector2::new(0.0, 2.0*size/5.0), Vector2::new(size, size/7.0))) ) //wings
-                    /( tr(Hitbox::new(position+Vector2::new(size/3.0, 0.0), Vector2::new(size/3.0, 7.0*size/10.0))) ) //fuselage
+                    /( tr(Hitbox::new(position+Vector2::new(2.0*size/12.0, size/3.0), Vector2::new(8.0*size/12.0, 2.0*size/3.0 - size/12.0))) )
             )
         }
     }
