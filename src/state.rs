@@ -225,7 +225,7 @@ impl State {
         //apply physics to existing stars
         for star in &mut self.stars {
             //wrap stars around the screen
-            if star.is_off_screen() {
+            if star.position.y > DISPLAY_RESOLUTION.1 {
                 star.position.y = 0.0;
             }
             star.physics();
