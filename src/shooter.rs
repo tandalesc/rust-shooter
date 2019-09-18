@@ -134,7 +134,7 @@ impl Enemy {
         let size = 55.0;
         Enemy {
             position: position,
-            velocity: Vector2::new(0.0, 0.0),
+            velocity: Vector2::new(0.0, 0.03),
             size: size,
             health: 80.0,
             flash_frames: 0,

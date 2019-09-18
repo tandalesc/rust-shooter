@@ -15,6 +15,8 @@ use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
 const ENEMIES: (u8,u8) = (7, 3);
 const ENEMY_SHOOT_CHANCE: usize = 10;
 
+const NUM_STARS: usize = 300;
+
 const PLAYER_EXP_PER_KILL: f32 = 40.0;
 const PLAYER_INVINCIBILITY: u32 = 60;
 const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
@@ -59,10 +61,12 @@ impl State {
             stars: Vec::new(),
             enemy_animation: SpriteSheetAnimation::new(
                 vec![
+                    "enemy/1".to_string(),
                     "enemy/3".to_string(),
-                    "enemy/4".to_string()
+                    "enemy/6".to_string(),
+                    "enemy/8".to_string(),
                 ],
-                500.0
+                1000.0/4.0
             ),
             player_animation: SpriteSheetAnimation::new(
                 vec![
@@ -74,7 +78,7 @@ impl State {
                     "player/6".to_string(),
                     "player/5".to_string(),
                 ],
-                200.0
+                1000.0/8.0
             ),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
@@ -205,8 +209,8 @@ impl State {
         Ok(())
     }
     fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        //spawn stars occasionally
-        if self.rng.gen_range(0.0, 1.0)<0.03 {
+        //spawn stars occasionally until we reach our max number of stars
+        if self.stars.len() < NUM_STARS && self.rng.gen_range(0.0, 1.0)<0.3 {
             //position is sampled uniformly across X-axis
             let random_position = Point2::new(self.rng.gen_range(0.0, DISPLAY_RESOLUTION.0), 0.0);
             //generate some random numbers to calculate size, velocity, and brightness with
@@ -219,9 +223,13 @@ impl State {
             self.stars.push(Star::new(random_position, velocity, random_size, normal_sample_2));
         }
         //apply physics to existing stars
-        for star in &mut self.stars { star.physics(); };
-        //delete stars that are off-screen
-        self.stars.retain(|star| !star.is_off_screen());
+        for star in &mut self.stars {
+            //wrap stars around the screen
+            if star.is_off_screen() {
+                star.position.y = 0.0;
+            }
+            star.physics();
+        };
         Ok(())
     }
 }
@@ -288,7 +296,6 @@ impl EventHandler for State {
             bullet_spr_info.h,
             &spritesheet_rect
         );
-        let player_bullet_color = Color::new(0.5,0.5,1.2,1.0);
         for bullet in &mut self.bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
@@ -307,7 +314,6 @@ impl EventHandler for State {
             }
         }
         //render enemy bullets
-        let enemy_bullet_color = Color::new(1.0,0.3,0.3,1.0);
         for bullet in &mut self.enemy_bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
