@@ -1,164 +1,228 @@
 {"frames": {
 
-"bullet":
+"Proton_Small":
 {
-	"frame": {"x":1024,"y":512,"w":64,"h":64},
+	"frame": {"x":58,"y":310,"w":7,"h":7},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":64,"h":64},
+	"spriteSourceSize": {"x":0,"y":0,"w":7,"h":7},
+	"sourceSize": {"w":7,"h":7}
+},
+"Proton_Medium":
+{
+	"frame": {"x":48,"y":310,"w":10,"h":10},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":10,"h":10},
+	"sourceSize": {"w":10,"h":10}
+},
+"Proton_Large":
+{
+	"frame": {"x":23,"y":310,"w":14,"h":13},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":14,"h":13},
+	"sourceSize": {"w":14,"h":13}
+},
+"PlayerBlue_Frame_03":
+{
+	"frame": {"x":0,"y":63,"w":53,"h":61},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":10,"y":0,"w":53,"h":61},
 	"sourceSize": {"w":64,"h":64}
 },
-"enemy/0":
+"PlayerBlue_Frame_02":
 {
-	"frame": {"x":0,"y":0,"w":256,"h":256},
+	"frame": {"x":60,"y":0,"w":58,"h":62},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":6,"y":0,"w":58,"h":62},
+	"sourceSize": {"w":64,"h":64}
 },
-"enemy/1":
+"PlayerBlue_Frame_01":
 {
-	"frame": {"x":0,"y":256,"w":256,"h":256},
+	"frame": {"x":0,"y":0,"w":60,"h":63},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":2,"y":0,"w":60,"h":63},
+	"sourceSize": {"w":64,"h":64}
 },
-"enemy/2":
+"Plasma_Small":
 {
-	"frame": {"x":0,"y":512,"w":256,"h":256},
+	"frame": {"x":66,"y":279,"w":8,"h":24},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":8,"h":24},
+	"sourceSize": {"w":8,"h":24}
 },
-"enemy/3":
+"Plasma_Medium":
 {
-	"frame": {"x":0,"y":768,"w":256,"h":256},
+	"frame": {"x":57,"y":279,"w":9,"h":27},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":9,"h":27},
+	"sourceSize": {"w":9,"h":27}
 },
-"enemy/4":
+"Plasma_Large":
 {
-	"frame": {"x":256,"y":0,"w":256,"h":256},
+	"frame": {"x":0,"y":279,"w":10,"h":31},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":10,"h":31},
+	"sourceSize": {"w":10,"h":31}
 },
-"enemy/5":
+"Minigun_Small":
 {
-	"frame": {"x":256,"y":256,"w":256,"h":256},
+	"frame": {"x":0,"y":310,"w":8,"h":17},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":8,"h":17},
+	"sourceSize": {"w":8,"h":17}
 },
-"enemy/6":
+"Minigun_Medium":
 {
-	"frame": {"x":256,"y":512,"w":256,"h":256},
+	"frame": {"x":105,"y":279,"w":10,"h":21},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":10,"h":21},
+	"sourceSize": {"w":10,"h":21}
 },
-"enemy/7":
+"Minigun_Large":
 {
-	"frame": {"x":256,"y":768,"w":256,"h":256},
+	"frame": {"x":19,"y":279,"w":9,"h":28},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":9,"h":28},
+	"sourceSize": {"w":9,"h":28}
 },
-"enemy/8":
+"Laser_Small":
 {
-	"frame": {"x":512,"y":0,"w":256,"h":256},
+	"frame": {"x":115,"y":279,"w":7,"h":19},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":7,"h":19},
+	"sourceSize": {"w":7,"h":19}
 },
-"player/0":
+"Laser_Medium":
 {
-	"frame": {"x":512,"y":256,"w":256,"h":256},
+	"frame": {"x":74,"y":279,"w":8,"h":23},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":8,"h":23},
+	"sourceSize": {"w":8,"h":23}
 },
-"player/1":
+"Laser_Large":
 {
-	"frame": {"x":512,"y":512,"w":256,"h":256},
+	"frame": {"x":10,"y":279,"w":9,"h":29},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"spriteSourceSize": {"x":0,"y":0,"w":9,"h":29},
+	"sourceSize": {"w":9,"h":29}
 },
-"player/2":
+"Explosion01_Frame_09":
 {
-	"frame": {"x":512,"y":768,"w":256,"h":256},
+	"frame": {"x":53,"y":63,"w":56,"h":56},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":4,"y":3,"w":56,"h":56},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/3":
+"Explosion01_Frame_08":
 {
-	"frame": {"x":768,"y":0,"w":256,"h":256},
+	"frame": {"x":63,"y":179,"w":50,"h":50},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":7,"y":6,"w":50,"h":50},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/4":
+"Explosion01_Frame_07":
 {
-	"frame": {"x":768,"y":256,"w":256,"h":256},
+	"frame": {"x":0,"y":233,"w":46,"h":46},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":9,"y":8,"w":46,"h":46},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/5":
+"Explosion01_Frame_06":
 {
-	"frame": {"x":768,"y":512,"w":256,"h":256},
+	"frame": {"x":46,"y":233,"w":42,"h":41},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":10,"y":11,"w":42,"h":41},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/6":
+"Explosion01_Frame_05":
 {
-	"frame": {"x":768,"y":768,"w":256,"h":256},
+	"frame": {"x":88,"y":233,"w":35,"h":36},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":14,"y":14,"w":35,"h":36},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/7":
+"Explosion01_Frame_04":
 {
-	"frame": {"x":1024,"y":0,"w":256,"h":256},
+	"frame": {"x":28,"y":279,"w":29,"h":28},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":17,"y":18,"w":29,"h":28},
+	"sourceSize": {"w":64,"h":64}
 },
-"player/8":
+"Explosion01_Frame_03":
 {
-	"frame": {"x":1024,"y":256,"w":256,"h":256},
+	"frame": {"x":82,"y":279,"w":23,"h":23},
 	"rotated": false,
-	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":256},
-	"sourceSize": {"w":256,"h":256}
+	"trimmed": true,
+	"spriteSourceSize": {"x":20,"y":21,"w":23,"h":23},
+	"sourceSize": {"w":64,"h":64}
+},
+"Explosion01_Frame_02":
+{
+	"frame": {"x":8,"y":310,"w":15,"h":15},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":23,"y":26,"w":15,"h":15},
+	"sourceSize": {"w":64,"h":64}
+},
+"Explosion01_Frame_01":
+{
+	"frame": {"x":37,"y":310,"w":11,"h":11},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":25,"y":28,"w":11,"h":11},
+	"sourceSize": {"w":64,"h":64}
+},
+"Enemy01_Red_Frame_3":
+{
+	"frame": {"x":64,"y":124,"w":60,"h":54},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":2,"y":5,"w":60,"h":54},
+	"sourceSize": {"w":64,"h":64}
+},
+"Enemy01_Red_Frame_2":
+{
+	"frame": {"x":0,"y":179,"w":63,"h":54},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":5,"w":63,"h":54},
+	"sourceSize": {"w":64,"h":64}
+},
+"Enemy01_Red_Frame_1":
+{
+	"frame": {"x":0,"y":124,"w":64,"h":55},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":4,"w":64,"h":55},
+	"sourceSize": {"w":64,"h":64}
 }},
 "meta": {
 	"app": "https://www.codeandweb.com/texturepacker",
 	"version": "1.0",
 	"image": "spaceship_sprites.png",
 	"format": "RGBA8888",
-	"size": {"w":1280,"h":1024},
-	"scale": "0.5",
-	"smartupdate": "$TexturePacker:SmartUpdate:8a3d0efae682c2b2238910f63079b1e7:82dfbf11a61c4d2cf73a5677915e02c1:5908c680265df278552afc2c2c7cd77f$"
+	"size": {"w":124,"h":327},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:efb9f3e1c6f86068b3fb9714030618d9:1c233d176a70378ab0b041c0cccf7523:5908c680265df278552afc2c2c7cd77f$"
 }
 }

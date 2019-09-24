@@ -11,6 +11,7 @@ use std::str;
 
 use crate::spritesheet::{SpriteSheetAnimation, SpriteSheetData};
 use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
+use crate::weapon::{Weapon};
 
 const ENEMIES: (u8,u8) = (7, 3);
 const ENEMY_SHOOT_CHANCE: usize = 10;
@@ -63,24 +64,11 @@ impl State {
             enemies: Vec::new(),
             stars: Vec::new(),
             enemy_animation: SpriteSheetAnimation::new(
-                vec![
-                    "enemy/1".to_string(),
-                    "enemy/3".to_string(),
-                    "enemy/6".to_string(),
-                    "enemy/8".to_string(),
-                ],
+                vec!["Enemy01_Red_Frame_1".to_string()],
                 1000.0/4.0
             ),
             player_animation: SpriteSheetAnimation::new(
-                vec![
-                    "player/1".to_string(),
-                    "player/3".to_string(),
-                    "player/2".to_string(),
-                    "player/4".to_string(),
-                    "player/7".to_string(),
-                    "player/6".to_string(),
-                    "player/5".to_string(),
-                ],
+                vec!["PlayerBlue_Frame_01".to_string()],
                 1000.0/8.0
             ),
             keys: HashSet::with_capacity(6),
@@ -294,24 +282,41 @@ impl EventHandler for State {
 
         let spritesheet_rect = self.spritesheet_data.meta.size.to_rect_f32();
         let halfway_point = Point2::new(0.5, 0.5);
-        let sprite_scale = Vector2::new(0.30, 0.30);
+        let sprite_scale = Vector2::new(1., 1.);
         let spritesheet_draw_params = DrawParam::default()
             .offset(halfway_point)
             .scale(sprite_scale);
 
         //render player bullets
-        let bullet_spr_info = self.spritesheet_data.frames.get("bullet").unwrap().frame.to_rect_f32();
-        let adjusted_bullet_spr_info = Rect::fraction(
-            bullet_spr_info.x,
-            bullet_spr_info.y,
-            bullet_spr_info.w,
-            bullet_spr_info.h,
+        let player_bullet_sprite = match self.player.get_weapon() {
+            Weapon::MachineGun(_) => {
+                "Minigun_Small"
+            },
+            Weapon::WideGun(_) => {
+                "Laser_Small"
+            }
+        };
+        let enemy_bullet_sprite = "Proton_Small";
+        let player_bullet_spr_info = self.spritesheet_data.frames.get(player_bullet_sprite).unwrap().frame.to_rect_f32();
+        let enemy_bullet_spr_info = self.spritesheet_data.frames.get(enemy_bullet_sprite).unwrap().frame.to_rect_f32();
+        let adjusted_player_bullet_spr_info = Rect::fraction(
+            player_bullet_spr_info.x,
+            player_bullet_spr_info.y,
+            player_bullet_spr_info.w,
+            player_bullet_spr_info.h,
+            &spritesheet_rect
+        );
+        let adjusted_enemy_bullet_spr_info = Rect::fraction(
+            enemy_bullet_spr_info.x,
+            enemy_bullet_spr_info.y,
+            enemy_bullet_spr_info.w,
+            enemy_bullet_spr_info.h,
             &spritesheet_rect
         );
         for bullet in &mut self.bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
-                    .src(adjusted_bullet_spr_info)
+                    .src(adjusted_player_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
                     .rotation(bullet.angle)
                     //.color(player_bullet_color)
@@ -329,7 +334,7 @@ impl EventHandler for State {
         for bullet in &mut self.enemy_bullets {
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
-                    .src(adjusted_bullet_spr_info)
+                    .src(adjusted_enemy_bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
                     .rotation(bullet.angle)
                     //.color(enemy_bullet_color)
@@ -357,7 +362,7 @@ impl EventHandler for State {
         for enemy in &mut self.enemies {
             let mut enemy_draw_param = spritesheet_draw_params
                 .src(adjusted_enemy_sprite_coor)
-                .rotation(std::f32::consts::PI)
+                //.rotation(std::f32::consts::PI)
                 .dest(enemy.position + Vector2::new(enemy.size/2.0, enemy.size/2.0));
             if enemy.flash_frames>0 {
                 //flash enemies when hit
@@ -375,7 +380,7 @@ impl EventHandler for State {
         }
         //render player
         let player_spaceship = if self.player.velocity.norm() < 0.1 {
-            "player/0"
+            "PlayerBlue_Frame_01"
         } else {
             self.player_animation.get_frame()
         };
