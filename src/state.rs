@@ -9,8 +9,8 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::str;
 
-use crate::spritesheet::{SpriteSheetAnimation, SpriteAnimation, SpriteSheetData, SpriteAnimationSystem, SpriteAnimationRegistry};
-use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject, Explosion};
+use crate::spritesheet::{SpriteAnimationComponent, SpriteAnimation, SpriteSheetData, SpriteAnimationSystem, SpriteAnimationRegistry, SpriteObject};
+use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, BulletType, Star, GameObject, Explosion};
 use crate::weapon::{Weapon};
 
 const ENEMIES: (u8,u8) = (7, 3);
@@ -135,7 +135,7 @@ impl State {
                         for bullet in self.player.shoot() {
                             self.bullets.push(bullet);
                         }
-                        self.player.bullet_spacing = self.player.get_weapon().get_fire_rate();
+                        self.player.bullet_spacing = self.player.get_weapon().unwrap().get_fire_rate();
                     }
                 }
                 KeyCode::Escape => {
@@ -198,7 +198,7 @@ impl State {
                 let normal_sample: f32 = self.rng.sample(StandardNormal);
                 let noise = self.player.size/2.0 * normal_sample * (1.0-accuracy) * Vector2::new(1.0,1.0);
                 let velocity = (direction + noise).normalize()*3.0;
-                self.enemy_bullets.push(Bullet::new(enemy, velocity, Some(offset), 10.0));
+                self.enemy_bullets.push(Bullet::new(enemy, velocity, Some(offset), 10.0, BulletType::Proton));
             }
             //only check for collisions if player is not invincible
             if self.player.invincibility_frames==0 && self.no_attack_timer==0 && enemy.collides_with(&self.player) {
@@ -208,20 +208,15 @@ impl State {
             if enemy.health <= 0.0 {
                 //mark enemy for removal and add experience to player
                 enemy.alive = false;
-                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().get_level() as f32);
+                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().unwrap().get_level() as f32);
             }
         }
         for enemy in &self.enemies {
-            //create an explosion 
+            //create an explosion
             if !enemy.alive {
-                self.explosions.push(
-                    Explosion::new(enemy.position, enemy.velocity, 64.,
-                        self.animation_system.add_registered_anim(
-                            "explosion".to_string(),
-                            &self.animation_registry
-                        ).unwrap()
-                    )
-                );
+                self.explosions.push(Explosion::new(enemy.position, enemy.velocity, 64.,
+                        &mut self.animation_system, &self.animation_registry
+                ));
             }
         }
         //remove any enemies that died
@@ -294,7 +289,7 @@ impl EventHandler for State {
         //level up
         if self.player.experience >= 100.0 {
             self.player.experience = 0.0;
-            self.player.get_weapon_mut().level_up();
+            self.player.get_weapon_mut().unwrap().level_up();
         }
 
         //win states
@@ -327,7 +322,6 @@ impl EventHandler for State {
         let mut background_meshbuilder = MeshBuilder::new();
         let mut hitbox_meshbuilder = MeshBuilder::new();
 
-        let spritesheet_rect = self.spritesheet_data.meta.size.to_rect_f32();
         let halfway_point = Point2::new(0.5, 0.5);
         let sprite_scale = Vector2::new(1., 1.);
         let spritesheet_draw_params = DrawParam::default()
@@ -335,35 +329,11 @@ impl EventHandler for State {
             .scale(sprite_scale);
 
         //render player bullets
-        let player_bullet_sprite = match self.player.get_weapon() {
-            Weapon::MachineGun(_) => {
-                "Minigun_Small"
-            },
-            Weapon::WideGun(_) => {
-                "Laser_Small"
-            }
-        };
-        let enemy_bullet_sprite = "Proton_Small";
-        let player_bullet_spr_info = self.spritesheet_data.frames.get(player_bullet_sprite).unwrap().frame.to_rect_f32();
-        let enemy_bullet_spr_info = self.spritesheet_data.frames.get(enemy_bullet_sprite).unwrap().frame.to_rect_f32();
-        let adjusted_player_bullet_spr_info = Rect::fraction(
-            player_bullet_spr_info.x,
-            player_bullet_spr_info.y,
-            player_bullet_spr_info.w,
-            player_bullet_spr_info.h,
-            &spritesheet_rect
-        );
-        let adjusted_enemy_bullet_spr_info = Rect::fraction(
-            enemy_bullet_spr_info.x,
-            enemy_bullet_spr_info.y,
-            enemy_bullet_spr_info.w,
-            enemy_bullet_spr_info.h,
-            &spritesheet_rect
-        );
         for bullet in &mut self.bullets {
+            let bullet_spr_info = bullet.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
-                    .src(adjusted_player_bullet_spr_info)
+                    .src(bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
                     .rotation(bullet.angle)
                     //.color(player_bullet_color)
@@ -379,9 +349,10 @@ impl EventHandler for State {
         }
         //render enemy bullets
         for bullet in &mut self.enemy_bullets {
+            let bullet_spr_info = bullet.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
             self.spritebatch_spritesheet.add(
                 spritesheet_draw_params
-                    .src(adjusted_enemy_bullet_spr_info)
+                    .src(bullet_spr_info)
                     .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
                     .rotation(bullet.angle)
                     //.color(enemy_bullet_color)
@@ -397,19 +368,10 @@ impl EventHandler for State {
         }
 
         //render enemies
-        let enemy_sprite = "Enemy01_Red_Frame_1";
-        let enemy_spr_info = self.spritesheet_data.frames.get(enemy_sprite).unwrap().frame.to_rect_f32();
-        let adjusted_enemy_sprite_coor = Rect::fraction(
-            enemy_spr_info.x,
-            enemy_spr_info.y,
-            enemy_spr_info.w,
-            enemy_spr_info.h,
-            &spritesheet_rect
-        );
         for enemy in &mut self.enemies {
+            let enemy_spr_info = enemy.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
             let mut enemy_draw_param = spritesheet_draw_params
-                .src(adjusted_enemy_sprite_coor)
-                //.rotation(std::f32::consts::PI)
+                .src(enemy_spr_info)
                 .dest(enemy.position + Vector2::new(enemy.size/2.0, enemy.size/2.0));
             if enemy.flash_frames>0 {
                 //flash enemies when hit
@@ -428,35 +390,18 @@ impl EventHandler for State {
 
         //render explosions
         for exp in &mut self.explosions {
-            let exp_sprite = self.animation_system.get_frame(exp.anim_handle).unwrap();
-            let exp_spr_info = self.spritesheet_data.frames.get(exp_sprite).unwrap().frame.to_rect_f32();
-            let adjusted_exp_sprite_coor = Rect::fraction(
-                exp_spr_info.x,
-                exp_spr_info.y,
-                exp_spr_info.w,
-                exp_spr_info.h,
-                &spritesheet_rect
-            );
+            let exp_sprite_info = exp.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
             let mut exp_draw_params = spritesheet_draw_params
-                .src(adjusted_exp_sprite_coor)
+                .src(exp_sprite_info)
                 .dest(exp.position + Vector2::new(exp.size/2.0, exp.size/2.0));
 
             self.spritebatch_spritesheet.add(exp_draw_params);
         }
 
         //render player
-        //if self.animation_system.get_frame()
-        let player_spaceship = "PlayerBlue_Frame_01";
-        let player_spr_info = self.spritesheet_data.frames.get(player_spaceship).unwrap().frame.to_rect_f32();
-        let adjusted_enemy_sprite_coor = Rect::fraction(
-            player_spr_info.x,
-            player_spr_info.y,
-            player_spr_info.w,
-            player_spr_info.h,
-            &spritesheet_rect
-        );
+        let player_spr_info = self.player.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
         let mut player_draw_param = spritesheet_draw_params
-            .src(adjusted_enemy_sprite_coor)
+            .src(player_spr_info)
             .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
         let flash_player_when_invincible = self.player.invincibility_frames>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
         let flash_player_no_attack_allowed = self.no_attack_timer>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
@@ -518,7 +463,7 @@ impl EventHandler for State {
         let health_text = Text::new(TextFragment::new(format!("health: {}/100",self.player.health)));
         graphics::draw(ctx, &health_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, hud_health_position.y+10.0)))?;
         //weapon information
-        let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().get_info()));
+        let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().unwrap().get_info()));
         graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(hud_exp_position.x+10.0, hud_exp_position.y+10.0)))?;
         //current stage
         let stage_text_display = if self.no_attack_timer>0 {

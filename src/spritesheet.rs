@@ -3,21 +3,33 @@ use ggez::graphics::Rect;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
+pub trait SpriteObject {
+    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> { None }
+    fn get_fractional_frame(&self, sprite_system: &SpriteAnimationSystem, sprite_data: &SpriteSheetData) -> Option<Rect> {
+        if let Some(frame) = self.get_frame(sprite_system) {
+            sprite_data.get_as_fractional_rect(frame)
+        } else {
+            None
+        }
+    }
+    fn register_in_system(&mut self, sprite_system: &mut SpriteAnimationSystem, animation_registry: &SpriteAnimationRegistry) { }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpriteAnimationSystem {
-    store: Vec<SpriteSheetAnimation>
+    store: Vec<SpriteAnimationComponent>
 }
 impl SpriteAnimationSystem {
     pub fn new() -> SpriteAnimationSystem {
         SpriteAnimationSystem { store: vec![] }
     }
-    pub fn add_anim(&mut self, anim: SpriteSheetAnimation) -> usize {
+    pub fn add_anim(&mut self, anim: SpriteAnimationComponent) -> usize {
         self.store.push(anim);
         self.store.len()-1
     }
     pub fn add_registered_anim(&mut self, registry_key: String, registry: &SpriteAnimationRegistry) -> Option<usize> {
         if let Some(anim) = registry.get_anim(registry_key) {
-            Some(self.add_anim(SpriteSheetAnimation::new(anim)))
+            Some(self.add_anim(SpriteAnimationComponent::new(anim)))
         } else {
             None
         }
@@ -30,7 +42,7 @@ impl SpriteAnimationSystem {
             anim.time_tick(tick);
         }
     }
-    pub fn get_anim(&self, anim_handle: usize) -> Option<&SpriteSheetAnimation> {
+    pub fn get_anim(&self, anim_handle: usize) -> Option<&SpriteAnimationComponent> {
         if let Some(anim) = self.store.get(anim_handle) {
             Some(anim)
         } else {
@@ -74,15 +86,15 @@ pub struct SpriteAnimation {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SpriteSheetAnimation {
+pub struct SpriteAnimationComponent {
     animation: SpriteAnimation,
     current_time: f32,
     current_frame: usize,
     pub finished: bool
 }
-impl SpriteSheetAnimation {
-    pub fn new(animation: &SpriteAnimation) -> SpriteSheetAnimation {
-        SpriteSheetAnimation {
+impl SpriteAnimationComponent {
+    pub fn new(animation: &SpriteAnimation) -> SpriteAnimationComponent {
+        SpriteAnimationComponent {
             animation: animation.clone(),
             current_time: 0.0,
             current_frame: 0,
@@ -115,6 +127,17 @@ impl SpriteSheetAnimation {
 pub struct SpriteSheetData {
     pub frames: HashMap<String, SpriteData>,
     pub meta: SpriteSheetMeta
+}
+impl SpriteSheetData {
+    pub fn get_as_fractional_rect(&self, sprite_sheet_key: String) -> Option<Rect> {
+        if let Some(sprite_data) = self.frames.get(&sprite_sheet_key) {
+            let spritesheet_rect = self.meta.size.to_rect_f32();
+            let spr_rect = sprite_data.frame.to_rect_f32();
+            Some(Rect::fraction(spr_rect.x, spr_rect.y, spr_rect.w, spr_rect.h, &spritesheet_rect))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

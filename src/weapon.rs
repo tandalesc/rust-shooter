@@ -1,5 +1,5 @@
 
-use crate::shooter::{Vector2, Bullet, Player};
+use crate::shooter::{Vector2, Bullet, BulletType, Player};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Weapon {
@@ -65,7 +65,7 @@ impl MachineGun {
     pub fn fire(&self, shooter: &Player) -> Vec<Bullet> {
         let velocity = Vector2::new(0.0, -self.bullet_speed);
         let offset = Vector2::new(0.0, self.fire_offset);
-        vec![Bullet::new(shooter, velocity, Some(offset), self.bullet_damage)]
+        vec![Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Minigun)]
     }
 }
 
@@ -104,7 +104,7 @@ impl WideGun {
             let offset_y = (bullet_num as f32).powf(2.0)*0.6-1.0;
             let velocity = Vector2::new(velocity_x, -self.bullet_speed);
             let offset = Vector2::new(offset_x, offset_y+self.fire_offset);
-            bullets.push(Bullet::new(shooter, velocity, Some(offset), self.bullet_damage));
+            bullets.push(Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Laser));
         }
         bullets
     }

@@ -4,7 +4,7 @@ use trees::tr;
 use crate::state::{DISPLAY_RESOLUTION, INTERNAL_RESOLUTION, FRICTION};
 use crate::hitbox::{Hitbox, HitboxTree};
 use crate::weapon::{Weapon, MachineGun, WideGun};
-use crate::spritesheet::{SpriteAnimationSystem};
+use crate::spritesheet::{SpriteAnimationSystem, SpriteAnimationRegistry, SpriteObject};
 
 pub type Point2 = na::Point2<f32>;
 pub type Vector2 = na::Vector2<f32>;
@@ -15,6 +15,13 @@ pub trait GameObject {
     fn get_size(&self) -> Vector2;
     //default implementation is no hitbox
     fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
+        None
+    }
+    //not all game objects have weapons
+    fn get_weapon_mut(&mut self) -> Option<&mut Weapon> {
+        None
+    }
+    fn get_weapon(&self) -> Option<&Weapon> {
         None
     }
     //default implementation -- get hitbox trees (if they exist) and do standard collision check
@@ -72,12 +79,6 @@ impl Player {
             )
         }
     }
-    pub fn get_weapon_mut(&mut self) -> &mut Weapon {
-        &mut self.weapons[self.current_weapon_idx]
-    }
-    pub fn get_weapon(&self) -> &Weapon {
-        &self.weapons[self.current_weapon_idx]
-    }
     pub fn cycle_weapons(&mut self) {
         if self.current_weapon_idx+1 < self.weapons.len() {
             self.current_weapon_idx += 1;
@@ -86,7 +87,7 @@ impl Player {
         }
     }
     pub fn shoot(&self) -> Vec<Bullet> {
-        self.get_weapon().fire(&self)
+        self.get_weapon().unwrap().fire(&self)
     }
     pub fn physics(&mut self) {
         //rudimentary physics
@@ -121,6 +122,17 @@ impl GameObject for Player {
     }
     fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
         Some(&self.hitbox_tree)
+    }
+    fn get_weapon_mut(&mut self) -> Option<&mut Weapon> {
+        Some(&mut self.weapons[self.current_weapon_idx])
+    }
+    fn get_weapon(&self) -> Option<&Weapon> {
+        Some(&self.weapons[self.current_weapon_idx])
+    }
+}
+impl SpriteObject for Player {
+    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> {
+        Some("PlayerBlue_Frame_01".to_string())
     }
 }
 
@@ -173,7 +185,18 @@ impl GameObject for Enemy {
         Some(&self.hitbox_tree)
     }
 }
+impl SpriteObject for Enemy {
+    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> {
+        Some("Enemy01_Red_Frame_1".to_string())
+    }
+}
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum BulletType {
+    Minigun,
+    Laser,
+    Proton
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bullet {
@@ -183,10 +206,11 @@ pub struct Bullet {
     pub size: f32,
     pub damage: f32,
     pub alive: bool,
-    pub hitbox_tree: HitboxTree
+    pub hitbox_tree: HitboxTree,
+    pub bullet_type: BulletType
 }
 impl Bullet {
-    pub fn new(obj: &dyn GameObject, velocity: Vector2, offset: Option<Vector2>, damage: f32) -> Bullet {
+    pub fn new(obj: &dyn GameObject, velocity: Vector2, offset: Option<Vector2>, damage: f32, bullet_type: BulletType) -> Bullet {
         let bullet_size = 10.0;
         let default_offset = Vector2::new((obj.get_size().x-bullet_size)/2.0, velocity.y.signum()*bullet_size);
         let final_offset = if let Some(o) = offset { default_offset + o } else { default_offset };
@@ -198,6 +222,7 @@ impl Bullet {
             size: bullet_size,
             damage: damage,
             alive: true,
+            bullet_type: bullet_type,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new(pos+Vector2::new(bullet_size/8.0, bullet_size/8.0), Vector2::new(3.0*bullet_size/4.0, 3.0*bullet_size/4.0)))
             )
@@ -217,6 +242,15 @@ impl GameObject for Bullet {
     }
     fn get_hitbox_tree(&self) -> Option<&HitboxTree> {
         Some(&self.hitbox_tree)
+    }
+}
+impl SpriteObject for Bullet {
+    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> {
+        match self.bullet_type {
+            BulletType::Minigun => Some("Minigun_Small".to_string()),
+            BulletType::Laser => Some("Laser_Small".to_string()),
+            BulletType::Proton => Some("Proton_Medium".to_string())
+        }
     }
 }
 
@@ -262,14 +296,16 @@ pub struct Explosion {
     pub finished: bool
 }
 impl Explosion {
-    pub fn new(position: Point2, velocity: Vector2, size: f32, anim_handle: usize) -> Explosion {
-        Explosion {
+    pub fn new(position: Point2, velocity: Vector2, size: f32, sprite_system: &mut SpriteAnimationSystem, animation_registry: &SpriteAnimationRegistry) -> Explosion {
+        let mut exp = Explosion {
             position: position,
             velocity: velocity,
             size: size,
-            anim_handle: anim_handle,
+            anim_handle: 0,
             finished: false
-        }
+        };
+        exp.register_in_system(sprite_system, animation_registry);
+        exp
     }
     pub fn poll_animation_finished(&self, anim_system: &SpriteAnimationSystem) -> bool {
         if let Some(anim) = anim_system.get_anim(self.anim_handle) {
@@ -288,5 +324,20 @@ impl GameObject for Explosion {
     }
     fn get_size(&self) -> Vector2 {
         Vector2::new(self.size, self.size)
+    }
+}
+impl SpriteObject for Explosion {
+    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> {
+        if let Some(frame) = sprite_system.get_frame(self.anim_handle) {
+            Some(frame.clone())
+        } else {
+            None
+        }
+    }
+    fn register_in_system(&mut self, sprite_system: &mut SpriteAnimationSystem, animation_registry: &SpriteAnimationRegistry) {
+        self.anim_handle = sprite_system.add_registered_anim(
+            "explosion".to_string(),
+            animation_registry
+        ).unwrap();
     }
 }
