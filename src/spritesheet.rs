@@ -3,35 +3,111 @@ use ggez::graphics::Rect;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpriteAnimationSystem {
+    store: Vec<SpriteSheetAnimation>
+}
+impl SpriteAnimationSystem {
+    pub fn new() -> SpriteAnimationSystem {
+        SpriteAnimationSystem { store: vec![] }
+    }
+    pub fn add_anim(&mut self, anim: SpriteSheetAnimation) -> usize {
+        self.store.push(anim);
+        self.store.len()-1
+    }
+    pub fn add_registered_anim(&mut self, registry_key: String, registry: &SpriteAnimationRegistry) -> Option<usize> {
+        if let Some(anim) = registry.get_anim(registry_key) {
+            Some(self.add_anim(SpriteSheetAnimation::new(anim)))
+        } else {
+            None
+        }
+    }
+    pub fn remove_anim(&mut self, anim_handle: usize) {
+        self.store.remove(anim_handle);
+    }
+    pub fn time_tick(&mut self, tick: f32) {
+        for anim in &mut self.store {
+            anim.time_tick(tick);
+        }
+    }
+    pub fn get_anim(&self, anim_handle: usize) -> Option<&SpriteSheetAnimation> {
+        if let Some(anim) = self.store.get(anim_handle) {
+            Some(anim)
+        } else {
+            None
+        }
+    }
+    pub fn get_frame(&self, anim_handle: usize) -> Option<&String> {
+        if let Some(anim) = self.store.get(anim_handle) {
+            Some(anim.get_frame())
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpriteAnimationRegistry {
+    store: HashMap<String, SpriteAnimation>
+}
+impl SpriteAnimationRegistry {
+    pub fn new() -> SpriteAnimationRegistry {
+        SpriteAnimationRegistry { store: HashMap::new() }
+    }
+    pub fn add_anim(&mut self, anim_key: String, anim: SpriteAnimation) {
+        self.store.insert(anim_key, anim);
+    }
+    pub fn get_anim(&self, anim_key: String) -> Option<&SpriteAnimation> {
+        if let Some(anim) = self.store.get(&anim_key) {
+            Some(&anim)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpriteAnimation {
+    pub frames: Vec<String>,
+    pub time_per_frame: f32,
+    pub loop_anim: bool
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpriteSheetAnimation {
-    frames: Vec<String>,
-    time_per_frame: f32,
+    animation: SpriteAnimation,
     current_time: f32,
-    current_frame: usize
+    current_frame: usize,
+    pub finished: bool
 }
 impl SpriteSheetAnimation {
-    pub fn new(frames: Vec<String>, time_per_frame: f32) -> SpriteSheetAnimation {
+    pub fn new(animation: &SpriteAnimation) -> SpriteSheetAnimation {
         SpriteSheetAnimation {
-            frames: frames,
-            time_per_frame: time_per_frame,
+            animation: animation.clone(),
             current_time: 0.0,
-            current_frame: 0
+            current_frame: 0,
+            finished: false
         }
     }
     pub fn time_tick(&mut self, tick: f32) {
-        if self.current_time+tick > self.time_per_frame {
-            self.current_time = 0.0;
-            self.current_frame = if self.current_frame+1 < self.frames.len() {
-                self.current_frame+1
+        if !self.finished {
+            if self.current_time+tick > self.animation.time_per_frame {
+                self.current_time = 0.0;
+                self.current_frame = if self.current_frame+1 < self.animation.frames.len() {
+                    self.current_frame+1
+                } else if self.animation.loop_anim {
+                    0
+                } else {
+                    self.finished = true;
+                    self.current_frame
+                };
             } else {
-                0
-            };
-        } else {
-            self.current_time += tick;
+                self.current_time += tick;
+            }
         }
     }
     pub fn get_frame(&self) -> &String {
-        &self.frames[self.current_frame]
+        &self.animation.frames[self.current_frame]
     }
 }
 

@@ -4,6 +4,7 @@ use trees::tr;
 use crate::state::{DISPLAY_RESOLUTION, INTERNAL_RESOLUTION, FRICTION};
 use crate::hitbox::{Hitbox, HitboxTree};
 use crate::weapon::{Weapon, MachineGun, WideGun};
+use crate::spritesheet::{SpriteAnimationSystem};
 
 pub type Point2 = na::Point2<f32>;
 pub type Vector2 = na::Vector2<f32>;
@@ -250,5 +251,42 @@ impl GameObject for Star {
         let size = self.get_size();
         pos.x<(-size.x) || pos.x>DISPLAY_RESOLUTION.0 ||
         pos.y<(-size.y) || pos.y>DISPLAY_RESOLUTION.1
+    }
+}
+
+pub struct Explosion {
+    pub position: Point2,
+    pub velocity: Vector2,
+    pub size: f32,
+    pub anim_handle: usize,
+    pub finished: bool
+}
+impl Explosion {
+    pub fn new(position: Point2, velocity: Vector2, size: f32, anim_handle: usize) -> Explosion {
+        Explosion {
+            position: position,
+            velocity: velocity,
+            size: size,
+            anim_handle: anim_handle,
+            finished: false
+        }
+    }
+    pub fn poll_animation_finished(&self, anim_system: &SpriteAnimationSystem) -> bool {
+        if let Some(anim) = anim_system.get_anim(self.anim_handle) {
+            anim.finished
+        } else {
+            false
+        }
+    }
+    pub fn physics(&mut self) {
+        self.position += self.velocity;
+    }
+}
+impl GameObject for Explosion {
+    fn get_position(&self) -> Point2 {
+        self.position
+    }
+    fn get_size(&self) -> Vector2 {
+        Vector2::new(self.size, self.size)
     }
 }

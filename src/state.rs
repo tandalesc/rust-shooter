@@ -9,8 +9,8 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::str;
 
-use crate::spritesheet::{SpriteSheetAnimation, SpriteSheetData};
-use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject};
+use crate::spritesheet::{SpriteSheetAnimation, SpriteAnimation, SpriteSheetData, SpriteAnimationSystem, SpriteAnimationRegistry};
+use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, Star, GameObject, Explosion};
 use crate::weapon::{Weapon};
 
 const ENEMIES: (u8,u8) = (7, 3);
@@ -35,15 +35,16 @@ pub struct State {
     bullets: Vec<Bullet>,
     enemy_bullets: Vec<Bullet>,
     enemies: Vec<Enemy>,
+    explosions: Vec<Explosion>,
     stars: Vec<Star>,
-    enemy_animation: SpriteSheetAnimation,
-    player_animation: SpriteSheetAnimation,
     keys: HashSet<KeyCode>,
     rng: ThreadRng,
     stage: usize,
     no_attack_timer: usize,
     game_running: bool,
     status: Option<&'static str>,
+    animation_registry: SpriteAnimationRegistry,
+    animation_system: SpriteAnimationSystem,
     spritesheet_data: SpriteSheetData,
     spritebatch_spritesheet: SpriteBatch
 }
@@ -57,26 +58,52 @@ impl State {
         let spritesheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
         //print out info about the first sprite as a test
         //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
+        let mut animation_registry = SpriteAnimationRegistry::new();
+        animation_registry.add_anim(
+            "explosion".to_string(),
+            SpriteAnimation {
+                frames: vec![
+                    "Explosion01_Frame_01".to_string(),
+                    "Explosion01_Frame_02".to_string(),
+                    "Explosion01_Frame_03".to_string(),
+                    "Explosion01_Frame_04".to_string(),
+                    "Explosion01_Frame_05".to_string(),
+                    "Explosion01_Frame_06".to_string(),
+                    "Explosion01_Frame_07".to_string(),
+                    "Explosion01_Frame_08".to_string(),
+                    "Explosion01_Frame_09".to_string()
+                ],
+                time_per_frame: 1000.0/24.0,
+                loop_anim: false
+            }
+        );
+        animation_registry.add_anim(
+            "player_turn".to_string(),
+            SpriteAnimation {
+                frames: vec![
+                    "PlayerBlue_Frame_01".to_string(),
+                    "PlayerBlue_Frame_02".to_string(),
+                    "PlayerBlue_Frame_03".to_string()
+                ],
+                time_per_frame: 1000.0/12.0,
+                loop_anim: false
+            }
+        );
         let state = State {
             player: Player::new(),
             bullets: Vec::new(),
             enemy_bullets: Vec::new(),
             enemies: Vec::new(),
+            explosions: Vec::new(),
             stars: Vec::new(),
-            enemy_animation: SpriteSheetAnimation::new(
-                vec!["Enemy01_Red_Frame_1".to_string()],
-                1000.0/4.0
-            ),
-            player_animation: SpriteSheetAnimation::new(
-                vec!["PlayerBlue_Frame_01".to_string()],
-                1000.0/8.0
-            ),
             keys: HashSet::with_capacity(6),
             rng: rand::thread_rng(),
             stage: 0,
             no_attack_timer: 0,
             game_running: true,
             status: None,
+            animation_registry: animation_registry,
+            animation_system: SpriteAnimationSystem::new(),
             spritesheet_data: spritesheet_data,
             spritebatch_spritesheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap())
         };
@@ -184,6 +211,19 @@ impl State {
                 self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().get_level() as f32);
             }
         }
+        for enemy in &self.enemies {
+            //create an explosion 
+            if !enemy.alive {
+                self.explosions.push(
+                    Explosion::new(enemy.position, enemy.velocity, 64.,
+                        self.animation_system.add_registered_anim(
+                            "explosion".to_string(),
+                            &self.animation_registry
+                        ).unwrap()
+                    )
+                );
+            }
+        }
         //remove any enemies that died
         self.enemies.retain(|enemy| enemy.alive);
         Ok(())
@@ -237,10 +277,17 @@ impl EventHandler for State {
         //spawn stars
         self.handle_background(ctx)?;
 
+        //keep explosions that aren't finished
+        for exp in &mut self.explosions {
+            if exp.poll_animation_finished(&self.animation_system) {
+                exp.finished = true;
+            }
+        }
+        self.explosions.retain(|exp| !exp.finished);
+
         //update animations
         let timer_delta = timer::delta(ctx).as_millis() as f32;
-        self.enemy_animation.time_tick(timer_delta);
-        self.player_animation.time_tick(timer_delta);
+        self.animation_system.time_tick(timer_delta);
 
         //handle player movement
         self.player.physics();
@@ -350,7 +397,7 @@ impl EventHandler for State {
         }
 
         //render enemies
-        let enemy_sprite = self.enemy_animation.get_frame();
+        let enemy_sprite = "Enemy01_Red_Frame_1";
         let enemy_spr_info = self.spritesheet_data.frames.get(enemy_sprite).unwrap().frame.to_rect_f32();
         let adjusted_enemy_sprite_coor = Rect::fraction(
             enemy_spr_info.x,
@@ -378,12 +425,28 @@ impl EventHandler for State {
                 }
             }
         }
+
+        //render explosions
+        for exp in &mut self.explosions {
+            let exp_sprite = self.animation_system.get_frame(exp.anim_handle).unwrap();
+            let exp_spr_info = self.spritesheet_data.frames.get(exp_sprite).unwrap().frame.to_rect_f32();
+            let adjusted_exp_sprite_coor = Rect::fraction(
+                exp_spr_info.x,
+                exp_spr_info.y,
+                exp_spr_info.w,
+                exp_spr_info.h,
+                &spritesheet_rect
+            );
+            let mut exp_draw_params = spritesheet_draw_params
+                .src(adjusted_exp_sprite_coor)
+                .dest(exp.position + Vector2::new(exp.size/2.0, exp.size/2.0));
+
+            self.spritebatch_spritesheet.add(exp_draw_params);
+        }
+
         //render player
-        let player_spaceship = if self.player.velocity.norm() < 0.1 {
-            "PlayerBlue_Frame_01"
-        } else {
-            self.player_animation.get_frame()
-        };
+        //if self.animation_system.get_frame()
+        let player_spaceship = "PlayerBlue_Frame_01";
         let player_spr_info = self.spritesheet_data.frames.get(player_spaceship).unwrap().frame.to_rect_f32();
         let adjusted_enemy_sprite_coor = Rect::fraction(
             player_spr_info.x,
