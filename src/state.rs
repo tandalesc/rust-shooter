@@ -41,7 +41,6 @@ pub struct State {
     rng: ThreadRng,
     stage: usize,
     no_attack_timer: usize,
-    game_running: bool,
     status: Option<&'static str>,
     animation_registry: SpriteAnimationRegistry,
     animation_system: SpriteAnimationSystem,
@@ -100,7 +99,6 @@ impl State {
             rng: rand::thread_rng(),
             stage: 0,
             no_attack_timer: 0,
-            game_running: true,
             status: None,
             animation_registry: animation_registry,
             animation_system: SpriteAnimationSystem::new(),
@@ -125,13 +123,13 @@ impl State {
                     self.player.velocity += Vector2::new(0.0, 1.0);
                 }
                 KeyCode::LShift => {
-                    if self.player.bullet_spacing==0 {
+                    if self.player.alive && self.player.bullet_spacing==0 {
                         self.player.cycle_weapons();
                         self.player.bullet_spacing += 50;
                     }
                 }
                 KeyCode::Space => {
-                    if self.player.bullet_spacing==0 && self.no_attack_timer==0 {
+                    if self.player.alive && self.player.bullet_spacing==0 && self.no_attack_timer==0 {
                         for bullet in self.player.shoot() {
                             self.bullets.push(bullet);
                         }
@@ -168,7 +166,7 @@ impl State {
             //apply physics to enemy bullets
             bullet.physics();
             //only check for collisions if player is not invincible
-            if self.player.invincibility_frames==0 && self.no_attack_timer==0 && bullet.collides_with(&self.player) {
+            if self.player.alive && self.player.invincibility_frames==0 && self.no_attack_timer==0 && bullet.collides_with(&self.player) {
                 //mark bullet for deletion
                  bullet.alive = false;
                 //do damage
@@ -187,7 +185,7 @@ impl State {
             //scale shooting chance with number of enemies
             //more enemies = each one shoots less frequently
             let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies/self.stage;
-            if self.game_running && self.no_attack_timer==0 && self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
+            if self.player.alive && self.no_attack_timer==0 && self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
                 let offset = Vector2::new(0.0, 20.0);
                 //bullets go towards player
                 let direction = self.player.position - enemy.position;
@@ -293,7 +291,7 @@ impl EventHandler for State {
         }
 
         //win states
-        if self.game_running && self.enemies.len()==0 {
+        if self.player.alive && self.enemies.len()==0 {
             //increment stage counter
             self.stage += 1;
             self.no_attack_timer = 200;
@@ -311,9 +309,12 @@ impl EventHandler for State {
             }
         }
         //lose states
-        if self.game_running && self.player.health <= 0.0 {
+        if self.player.alive && self.player.health <= 0.0 {
             self.status = Some("game over");
-            self.game_running = false;
+            self.player.alive = false;
+            self.explosions.push(Explosion::new(self.player.position, Vector2::new(0.,0.), 64.,
+                    &mut self.animation_system, &self.animation_registry
+            ));
         }
         Ok(())
     }
@@ -399,23 +400,25 @@ impl EventHandler for State {
         }
 
         //render player
-        let player_spr_info = self.player.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-        let mut player_draw_param = spritesheet_draw_params
-            .src(player_spr_info)
-            .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
-        let flash_player_when_invincible = self.player.invincibility_frames>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
-        let flash_player_no_attack_allowed = self.no_attack_timer>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
-        if flash_player_when_invincible || flash_player_no_attack_allowed {
-            //flash player when invincible
-            player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.1));
-        }
-        self.spritebatch_spritesheet.add(player_draw_param);
-        //draw hitboxes for debugging
-        if SHOW_HITBOXES {
-            for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
-                let hitbox = hitbox_visit.data;
-                let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
+        if self.player.alive {
+            let player_spr_info = self.player.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
+            let mut player_draw_param = spritesheet_draw_params
+                .src(player_spr_info)
+                .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
+            let flash_player_when_invincible = self.player.invincibility_frames>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
+            let flash_player_no_attack_allowed = self.no_attack_timer>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
+            if flash_player_when_invincible || flash_player_no_attack_allowed {
+                //flash player when invincible
+                player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.1));
+            }
+            self.spritebatch_spritesheet.add(player_draw_param);
+            //draw hitboxes for debugging
+            if SHOW_HITBOXES {
+                for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
+                    let hitbox = hitbox_visit.data;
+                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
+                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
+                }
             }
         }
 

@@ -52,6 +52,7 @@ pub struct Player {
     weapons: Vec<Weapon>,
     pub current_weapon_idx: usize,
     pub hitbox_tree: HitboxTree,
+    pub alive: bool
 }
 impl Player {
     pub fn new() -> Player {
@@ -70,6 +71,7 @@ impl Player {
                 Weapon::MachineGun(MachineGun::new())
             ],
             current_weapon_idx: 0,
+            alive: true,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size)) //root
                     //wings
