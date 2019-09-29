@@ -295,6 +295,10 @@ impl EventHandler for State {
             //increment stage counter
             self.stage += 1;
             self.no_attack_timer = 200;
+            //restore up to 25% of player health
+            if self.player.health < 25. {
+                self.player.health = 25.;
+            }
             //generate a grid of enemies
             for x in 0..ENEMIES.0 {
                 for y in 0..ENEMIES.1 {
@@ -312,6 +316,7 @@ impl EventHandler for State {
         if self.player.alive && self.player.health <= 0.0 {
             self.status = Some("game over");
             self.player.alive = false;
+            self.player.health = 0.;
             self.explosions.push(Explosion::new(self.player.position, Vector2::new(0.,0.), 64.,
                     &mut self.animation_system, &self.animation_registry
             ));

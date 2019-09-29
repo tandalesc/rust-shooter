@@ -115,8 +115,8 @@ impl WideGun {
     pub fn level_up(&mut self) {
         self.level += 1;
         //only update spread every 3 levels, starting at level 2
-        if self.level>1 && (self.level-2)%3==0 {
-            self.num_bullets = (WIDEGUN_DEFAULT_WIDTH+1).min(WIDEGUN_MAX_WIDTH);
+        if self.level>1 && (self.level-2)%4==0 {
+            self.num_bullets = (self.num_bullets+1).min(WIDEGUN_MAX_WIDTH);
         }
         if self.level%2==0 {
             self.fire_rate = (self.fire_rate-1).max(WIDEGUN_MAX_FIRERATE);
