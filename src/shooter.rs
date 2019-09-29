@@ -73,9 +73,9 @@ impl Player {
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(pos, size)) //root
                     //wings
-                    /( tr(Hitbox::new(pos+Vector2::new(0.0, 5.0*size/12.0), Vector2::new(size, size/3.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/12., 7.*size/12.), Vector2::new(5.*size/6., size/4.))) )
                     //body
-                    /( tr(Hitbox::new(pos+Vector2::new(size/3.0, 0.0), Vector2::new(size/3.0, 2.0*size/3.0))) )
+                    /( tr(Hitbox::new(pos+Vector2::new(size/3., size/6.), Vector2::new(size/3., 2.*size/3.))) )
             )
         }
     }
@@ -158,12 +158,10 @@ impl Enemy {
             alive: true,
             hitbox_tree: HitboxTree::new(
                 tr(Hitbox::new_square(position, size)) //root
-                    //left wing
-                    /( tr(Hitbox::new(position+Vector2::new(0.0, size/7.0), Vector2::new(size/3.0, 6.0*size/7.0))) )
+                    //wings
+                    /( tr(Hitbox::new(position+Vector2::new(0., 2.*size/5.), Vector2::new(size, size/5.))) )
                     //center
-                    /( tr(Hitbox::new(position+Vector2::new(size/3.0, 2.0*size/7.0), Vector2::new(size/3.0, size/2.0))) )
-                    //right wing
-                    /( tr(Hitbox::new(position+Vector2::new(2.0*size/3.0, size/7.0), Vector2::new(size/3.0, 6.0*size/7.0))) )
+                    /( tr(Hitbox::new(position+Vector2::new(3.*size/10., size/5.), Vector2::new(2.*size/5., 3.*size/5.))) )
             )
         }
     }
@@ -224,7 +222,7 @@ impl Bullet {
             alive: true,
             bullet_type: bullet_type,
             hitbox_tree: HitboxTree::new(
-                tr(Hitbox::new(pos+Vector2::new(bullet_size/8.0, bullet_size/8.0), Vector2::new(3.0*bullet_size/4.0, 3.0*bullet_size/4.0)))
+                tr(Hitbox::new(pos+Vector2::new(bullet_size/8.0, 0.), Vector2::new(3.0*bullet_size/4.0, 3.0*bullet_size/4.0)))
             )
         }
     }
