@@ -1,10 +1,9 @@
-
 use ggez::graphics::Rect;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
 pub trait SpriteObject {
-    fn get_frame(&self, sprite_system: &SpriteAnimationSystem) -> Option<String> { None }
+    fn get_frame(&self, _sprite_system: &SpriteAnimationSystem) -> Option<String> { None }
     fn get_fractional_frame(&self, sprite_system: &SpriteAnimationSystem, sprite_data: &SpriteSheetData) -> Option<Rect> {
         if let Some(frame) = self.get_frame(sprite_system) {
             sprite_data.get_as_fractional_rect(frame)
@@ -12,7 +11,7 @@ pub trait SpriteObject {
             None
         }
     }
-    fn register_in_system(&mut self, sprite_system: &mut SpriteAnimationSystem, animation_registry: &SpriteAnimationRegistry) { }
+    fn register_in_system(&mut self, _sprite_system: &mut SpriteAnimationSystem, _animation_registry: &SpriteAnimationRegistry) { }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -34,27 +33,16 @@ impl SpriteAnimationSystem {
             None
         }
     }
-    pub fn remove_anim(&mut self, anim_handle: usize) {
-        self.store.remove(anim_handle);
-    }
     pub fn time_tick(&mut self, tick: f32) {
         for anim in &mut self.store {
             anim.time_tick(tick);
         }
     }
     pub fn get_anim(&self, anim_handle: usize) -> Option<&SpriteAnimationComponent> {
-        if let Some(anim) = self.store.get(anim_handle) {
-            Some(anim)
-        } else {
-            None
-        }
+        self.store.get(anim_handle)
     }
     pub fn get_frame(&self, anim_handle: usize) -> Option<&String> {
-        if let Some(anim) = self.store.get(anim_handle) {
-            Some(anim.get_frame())
-        } else {
-            None
-        }
+        self.store.get(anim_handle).map(|anim| anim.get_frame())
     }
 }
 
@@ -70,11 +58,7 @@ impl SpriteAnimationRegistry {
         self.store.insert(anim_key, anim);
     }
     pub fn get_anim(&self, anim_key: String) -> Option<&SpriteAnimation> {
-        if let Some(anim) = self.store.get(&anim_key) {
-            Some(&anim)
-        } else {
-            None
-        }
+        self.store.get(&anim_key)
     }
 }
 
@@ -82,7 +66,13 @@ impl SpriteAnimationRegistry {
 pub struct SpriteAnimation {
     pub frames: Vec<String>,
     pub time_per_frame: f32,
-    pub loop_anim: bool
+    pub loop_anim: bool,
+}
+
+impl SpriteAnimation {
+    pub fn new(frames: Vec<String>, time_per_frame: f32, loop_anim: bool) -> Self {
+        Self { frames, time_per_frame, loop_anim }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
