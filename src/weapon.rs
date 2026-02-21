@@ -1,138 +1,155 @@
+use ggez::glam::Vec2;
 
-use crate::shooter::{Vector2, Bullet, BulletType, Player};
+use crate::shooter::{Bullet, BulletType, GameObject};
+
+pub trait WeaponBehavior {
+    fn fire(&self, shooter: &dyn GameObject) -> Vec<Bullet>;
+    fn fire_rate(&self) -> u32;
+    fn level(&self) -> u32;
+    fn name(&self) -> &'static str;
+    fn level_up(&mut self);
+
+    fn info(&self) -> String {
+        format!("{} ( level: {} )", self.name(), self.level())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Weapon {
     MachineGun(MachineGun),
-    WideGun(WideGun)
+    WideGun(WideGun),
 }
+
 impl Weapon {
-    pub fn fire(&self, shooter: &Player) -> Vec<Bullet> {
+    fn inner(&self) -> &dyn WeaponBehavior {
         match self {
-            Weapon::MachineGun(mg) => { mg.fire(shooter) },
-            Weapon::WideGun(wg) => { wg.fire(shooter) }
+            Weapon::MachineGun(w) => w,
+            Weapon::WideGun(w) => w,
         }
     }
-    pub fn get_info(&self) -> String {
+    fn inner_mut(&mut self) -> &mut dyn WeaponBehavior {
         match self {
-            Weapon::MachineGun(mg) => { format!("MachineGun ( level: {} )", mg.level) },
-            Weapon::WideGun(wg) => { format!("WideGun ( level: {} )", wg.level) }
+            Weapon::MachineGun(w) => w,
+            Weapon::WideGun(w) => w,
         }
     }
-    pub fn get_fire_rate(&self) -> u32 {
-        match self {
-            Weapon::MachineGun(mg) => { mg.fire_rate },
-            Weapon::WideGun(wg) => { wg.fire_rate }
-        }
-    }
-    pub fn get_level(&self) -> u32 {
-        match self {
-            Weapon::MachineGun(mg) => { mg.level },
-            Weapon::WideGun(wg) => { wg.level }
-        }
-    }
-    pub fn level_up(&mut self) {
-        match self {
-            Weapon::MachineGun(mg) => { mg.level_up(); },
-            Weapon::WideGun(wg) => { wg.level_up(); }
-        }
-    }
+    pub fn fire(&self, shooter: &dyn GameObject) -> Vec<Bullet> { self.inner().fire(shooter) }
+    pub fn fire_rate(&self) -> u32 { self.inner().fire_rate() }
+    pub fn level(&self) -> u32 { self.inner().level() }
+    pub fn info(&self) -> String { self.inner().info() }
+    pub fn level_up(&mut self) { self.inner_mut().level_up(); }
 }
+
+// -- MachineGun ---------------------------------------------------------------
 
 const MACHINEGUN_DEFAULT_FIRERATE: u32 = 11;
 const MACHINEGUN_MAX_FIRERATE: u32 = 6;
-const MACHINEGUN_DEFAULT_WIDTH: u32 = 0;
 const MACHINEGUN_MAX_WIDTH: u32 = 3;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MachineGun {
-    pub level: u32,
-    pub fire_rate: u32,
-    pub fire_offset: f32,
-    pub bullet_speed: f32,
-    pub bullet_damage: f32,
-    pub pattern_width: u32
+    level: u32,
+    fire_rate: u32,
+    fire_offset: f32,
+    bullet_speed: f32,
+    bullet_damage: f32,
+    pattern_width: u32,
 }
+
 impl MachineGun {
-    pub fn new() -> MachineGun {
-        MachineGun {
+    pub fn new() -> Self {
+        Self {
             level: 0,
             fire_rate: MACHINEGUN_DEFAULT_FIRERATE,
-            fire_offset: 3.,
-            bullet_speed: 5.,
-            bullet_damage: 4.,
-            pattern_width: MACHINEGUN_DEFAULT_WIDTH
+            fire_offset: 3.0,
+            bullet_speed: 5.0,
+            bullet_damage: 4.0,
+            pattern_width: 0,
         }
-    }
-    pub fn level_up(&mut self) {
-        self.level += 1;
-        //only update spread every 4 levels, starting at level 2
-        if self.level>1 && (self.level-2)%4==0 {
-            self.pattern_width = (self.pattern_width+1).min(MACHINEGUN_MAX_WIDTH);
-        }
-        if self.level%2==0 {
-            self.fire_rate = (self.fire_rate-1).max(MACHINEGUN_MAX_FIRERATE);
-        }
-    }
-    pub fn fire(&self, shooter: &Player) -> Vec<Bullet> {
-        let mut bullets: Vec<Bullet> = vec![];
-        let velocity = Vector2::new(0., -self.bullet_speed);
-        let offset = Vector2::new(0., self.fire_offset);
-        let pattern_width = self.pattern_width as i32;
-        for bullet_num in -pattern_width..pattern_width+1 {
-            let offset_x = (bullet_num as f32)*10.;
-            let offset_y = (bullet_num as f32).abs()*2.5-1.;
-            let offset = Vector2::new(offset_x, offset_y+self.fire_offset);
-            bullets.push(Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Minigun))
-        }
-        bullets
     }
 }
 
+impl WeaponBehavior for MachineGun {
+    fn fire(&self, shooter: &dyn GameObject) -> Vec<Bullet> {
+        let velocity = Vec2::new(0.0, -self.bullet_speed);
+        let w = self.pattern_width as i32;
+        (-w..=w)
+            .map(|i| {
+                let n = i as f32;
+                let offset = Vec2::new(n * 10.0, n.abs() * 2.5 - 1.0 + self.fire_offset);
+                Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Minigun)
+            })
+            .collect()
+    }
+
+    fn fire_rate(&self) -> u32 { self.fire_rate }
+    fn level(&self) -> u32 { self.level }
+    fn name(&self) -> &'static str { "MachineGun" }
+
+    fn level_up(&mut self) {
+        self.level += 1;
+        if self.level > 1 && (self.level - 2) % 4 == 0 {
+            self.pattern_width = (self.pattern_width + 1).min(MACHINEGUN_MAX_WIDTH);
+        }
+        if self.level % 2 == 0 {
+            self.fire_rate = (self.fire_rate - 1).max(MACHINEGUN_MAX_FIRERATE);
+        }
+    }
+}
+
+// -- WideGun ------------------------------------------------------------------
+
 const WIDEGUN_DEFAULT_FIRERATE: u32 = 14;
 const WIDEGUN_MAX_FIRERATE: u32 = 10;
-const WIDEGUN_DEFAULT_WIDTH: u32 = 1;
 const WIDEGUN_MAX_WIDTH: u32 = 5;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct WideGun {
-    pub level: u32,
-    pub fire_rate: u32,
-    pub num_bullets: u32,
-    pub fire_offset: f32,
-    pub bullet_speed: f32,
-    pub bullet_damage: f32
+    level: u32,
+    fire_rate: u32,
+    num_bullets: u32,
+    fire_offset: f32,
+    bullet_speed: f32,
+    bullet_damage: f32,
 }
+
 impl WideGun {
-    pub fn new() -> WideGun {
-        WideGun {
+    pub fn new() -> Self {
+        Self {
             level: 0,
             fire_rate: WIDEGUN_DEFAULT_FIRERATE,
-            num_bullets: WIDEGUN_DEFAULT_WIDTH,
-            fire_offset: 3.,
+            num_bullets: 1,
+            fire_offset: 3.0,
             bullet_speed: 4.5,
-            bullet_damage: 3.
+            bullet_damage: 3.0,
         }
     }
-    pub fn level_up(&mut self) {
+}
+
+impl WeaponBehavior for WideGun {
+    fn fire(&self, shooter: &dyn GameObject) -> Vec<Bullet> {
+        let n = self.num_bullets as i32;
+        (-n..=n)
+            .map(|i| {
+                let f = i as f32;
+                let velocity = Vec2::new(f * 0.4, -self.bullet_speed);
+                let offset = Vec2::new(f * 10.0, f.powi(2) * 1.5 - 1.0 + self.fire_offset);
+                Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Laser)
+            })
+            .collect()
+    }
+
+    fn fire_rate(&self) -> u32 { self.fire_rate }
+    fn level(&self) -> u32 { self.level }
+    fn name(&self) -> &'static str { "WideGun" }
+
+    fn level_up(&mut self) {
         self.level += 1;
-        //only update spread every 3 levels, starting at level 2
-        if self.level>1 && (self.level-2)%4==0 {
-            self.num_bullets = (self.num_bullets+1).min(WIDEGUN_MAX_WIDTH);
+        if self.level > 1 && (self.level - 2) % 4 == 0 {
+            self.num_bullets = (self.num_bullets + 1).min(WIDEGUN_MAX_WIDTH);
         }
-        if self.level%2==0 {
-            self.fire_rate = (self.fire_rate-1).max(WIDEGUN_MAX_FIRERATE);
+        if self.level % 2 == 0 {
+            self.fire_rate = (self.fire_rate - 1).max(WIDEGUN_MAX_FIRERATE);
         }
-    }
-    pub fn fire(&self, shooter: &Player) -> Vec<Bullet> {
-        let mut bullets: Vec<Bullet> = vec![];
-        let num_bullets = self.num_bullets as i32;
-        for bullet_num in -num_bullets..num_bullets+1 {
-            let velocity_x = (bullet_num as f32)*0.4;
-            let offset_x = (bullet_num as f32)*10.;
-            let offset_y = (bullet_num as f32).powf(2.)*1.5-1.;
-            let velocity = Vector2::new(velocity_x, -self.bullet_speed);
-            let offset = Vector2::new(offset_x, offset_y+self.fire_offset);
-            bullets.push(Bullet::new(shooter, velocity, Some(offset), self.bullet_damage, BulletType::Laser));
-        }
-        bullets
     }
 }

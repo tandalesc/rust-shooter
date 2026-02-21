@@ -1,6 +1,7 @@
-use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, MeshBuilder, Rect, Text, TextFragment};
-use ggez::graphics::spritebatch::{SpriteBatch};
-use ggez::event::{self, EventHandler, KeyCode, KeyMods};
+use ggez::graphics::{Color, DrawMode, DrawParam, Image, Mesh, Rect, Text, TextFragment, Canvas, InstanceArray};
+use ggez::input::keyboard::{KeyCode, KeyInput};
+use ggez::event::EventHandler;
+use ggez::glam::Vec2;
 use ggez::*;
 use rand::Rng;
 use rand::rngs::ThreadRng;
@@ -9,26 +10,9 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::str;
 
-use crate::spritesheet::{SpriteAnimationComponent, SpriteAnimation, SpriteSheetData, SpriteAnimationSystem, SpriteAnimationRegistry, SpriteObject};
-use crate::shooter::{Vector2, Point2, Player, Enemy, Bullet, BulletType, Star, GameObject, Explosion};
-use crate::weapon::{Weapon};
-
-const ENEMIES: (u8,u8) = (7, 3);
-const ENEMY_SHOOT_CHANCE: usize = 10;
-
-const NUM_STARS: usize = 300;
-
-const PLAYER_EXP_PER_KILL: f32 = 40.0;
-const PLAYER_INVINCIBILITY: u32 = 60;
-const HITBOX_COLOR: (f32, f32, f32, f32) = (1.0, 0.1, 0.1, 0.4);
-
-pub const FRICTION: f32 = 0.1;
-
-pub const DISPLAY_RESOLUTION: (f32, f32) = (920.0, 690.0);
-pub const INTERNAL_RESOLUTION: (f32, f32) = (920.0, 690.0);
-
-const SHOW_FRAMERATE: bool = false;
-const SHOW_HITBOXES: bool = false;
+use crate::config::*;
+use crate::spritesheet::{SpriteAnimation, SpriteSheetData, SpriteAnimationSystem, SpriteAnimationRegistry, SpriteObject};
+use crate::shooter::{Player, Enemy, Bullet, BulletType, Star, GameObject, Explosion};
 
 pub struct State {
     player: Player,
@@ -41,54 +25,43 @@ pub struct State {
     rng: ThreadRng,
     stage: usize,
     no_attack_timer: usize,
+    tick_count: usize,
     status: Option<&'static str>,
     animation_registry: SpriteAnimationRegistry,
     animation_system: SpriteAnimationSystem,
     spritesheet_data: SpriteSheetData,
-    spritebatch_spritesheet: SpriteBatch
+    spritesheet_instances: InstanceArray,
 }
 
 impl State {
-    pub fn new(ctx: &mut Context) -> GameResult<State> {
+    pub fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut buffer = Vec::new();
-        //load sprite sheet information from texturepacker json using serde
-        let mut spritesheet_data_file = filesystem::open(ctx, "/spaceship_sprites.json")?;
+        let mut spritesheet_data_file = ctx.fs.open("/spaceship_sprites.json")?;
         spritesheet_data_file.read_to_end(&mut buffer)?;
-        let spritesheet_data: SpriteSheetData = serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
-        //print out info about the first sprite as a test
-        //println!("{:?}", sprite_sheet_data.frames.get("Spaceships/1").unwrap());
+        let spritesheet_data: SpriteSheetData =
+            serde_json::from_str(str::from_utf8(&buffer).unwrap()).unwrap();
+
         let mut animation_registry = SpriteAnimationRegistry::new();
         animation_registry.add_anim(
             "explosion".to_string(),
-            SpriteAnimation {
-                frames: vec![
-                    "Explosion01_Frame_01".to_string(),
-                    "Explosion01_Frame_02".to_string(),
-                    "Explosion01_Frame_03".to_string(),
-                    "Explosion01_Frame_04".to_string(),
-                    "Explosion01_Frame_05".to_string(),
-                    "Explosion01_Frame_06".to_string(),
-                    "Explosion01_Frame_07".to_string(),
-                    "Explosion01_Frame_08".to_string(),
-                    "Explosion01_Frame_09".to_string()
-                ],
-                time_per_frame: 1000.0/24.0,
-                loop_anim: false
-            }
+            SpriteAnimation::new(
+                (1..=9).map(|i| format!("Explosion01_Frame_{i:02}")).collect(),
+                1000.0 / 24.0,
+                false,
+            ),
         );
         animation_registry.add_anim(
             "player_turn".to_string(),
-            SpriteAnimation {
-                frames: vec![
-                    "PlayerBlue_Frame_01".to_string(),
-                    "PlayerBlue_Frame_02".to_string(),
-                    "PlayerBlue_Frame_03".to_string()
-                ],
-                time_per_frame: 1000.0/12.0,
-                loop_anim: false
-            }
+            SpriteAnimation::new(
+                (1..=3).map(|i| format!("PlayerBlue_Frame_{i:02}")).collect(),
+                1000.0 / 12.0,
+                false,
+            ),
         );
-        let state = State {
+
+        let spritesheet_image = Image::from_path(ctx, "/spaceship_sprites.png")?;
+
+        Ok(Self {
             player: Player::new(),
             bullets: Vec::new(),
             enemy_bullets: Vec::new(),
@@ -99,178 +72,259 @@ impl State {
             rng: rand::thread_rng(),
             stage: 0,
             no_attack_timer: 0,
+            tick_count: 0,
             status: None,
-            animation_registry: animation_registry,
+            animation_registry,
             animation_system: SpriteAnimationSystem::new(),
-            spritesheet_data: spritesheet_data,
-            spritebatch_spritesheet: SpriteBatch::new(Image::new(ctx, "/spaceship_sprites.png").unwrap())
-        };
-        Ok(state)
+            spritesheet_data,
+            spritesheet_instances: InstanceArray::new(ctx, spritesheet_image),
+        })
     }
-    fn handle_keys(&mut self, ctx: &mut Context) -> GameResult<()> {
-        for key in &self.keys {
+
+    // -- Input ----------------------------------------------------------------
+
+    fn handle_keys(&mut self, ctx: &mut Context) {
+        // Snapshot keys so we can mutate self freely
+        let keys: Vec<KeyCode> = self.keys.iter().copied().collect();
+        for key in keys {
             match key {
-                KeyCode::Up => {
-                    self.player.velocity += Vector2::new(0.0, -1.0);
-                }
-                KeyCode::Left => {
-                    self.player.velocity += Vector2::new(-1.0, 0.0);
-                }
-                KeyCode::Right => {
-                    self.player.velocity += Vector2::new(1.0, 0.0);
-                }
-                KeyCode::Down => {
-                    self.player.velocity += Vector2::new(0.0, 1.0);
-                }
+                KeyCode::Up    => self.player.velocity += Vec2::new(0.0, -1.0),
+                KeyCode::Down  => self.player.velocity += Vec2::new(0.0,  1.0),
+                KeyCode::Left  => self.player.velocity += Vec2::new(-1.0, 0.0),
+                KeyCode::Right => self.player.velocity += Vec2::new( 1.0, 0.0),
                 KeyCode::LShift => {
-                    if self.player.alive && self.player.bullet_spacing==0 {
+                    if self.player.alive && self.player.bullet_spacing == 0 {
                         self.player.cycle_weapons();
                         self.player.bullet_spacing += 50;
                     }
                 }
                 KeyCode::Space => {
-                    if self.player.alive && self.player.bullet_spacing==0 && self.no_attack_timer==0 {
-                        for bullet in self.player.shoot() {
-                            self.bullets.push(bullet);
-                        }
-                        self.player.bullet_spacing = self.player.get_weapon().unwrap().get_fire_rate();
+                    if self.player.alive && self.player.bullet_spacing == 0 && self.no_attack_timer == 0 {
+                        self.bullets.extend(self.player.shoot());
+                        self.player.bullet_spacing = self.player.weapon().fire_rate();
                     }
                 }
-                KeyCode::Escape => {
-                    event::quit(ctx);
-                }
-                _ => { /* Do nothing */ }
+                KeyCode::Escape => ctx.request_quit(),
+                _ => {}
             }
         }
-        Ok(())
     }
-    fn handle_bullets(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        //check player bullets and enemies for collisions
+
+    // -- Physics & Collisions -------------------------------------------------
+
+    fn handle_bullets(&mut self) {
+        let no_attack = self.no_attack_timer > 0;
+
+        // Player bullets vs enemies
         for bullet in &mut self.bullets {
-            //apply physics to player bullets
             bullet.physics();
+            if no_attack { continue; }
             for enemy in &mut self.enemies {
-                if self.no_attack_timer==0 && bullet.collides_with(enemy) {
-                    //mark bullet for deletion
+                if bullet.collides_with(enemy) {
                     bullet.alive = false;
-                    //do damage
                     enemy.health -= bullet.damage;
                     enemy.flash_frames = 5;
                 }
             }
         }
-        self.bullets.retain(|bullet| bullet.alive && !bullet.is_off_screen());
+        self.bullets.retain(|b| b.alive && !b.is_off_screen());
 
-        //check enemy bullets and player for collisions
+        // Enemy bullets vs player
+        let player_vulnerable = self.player.is_vulnerable() && !no_attack;
         for bullet in &mut self.enemy_bullets {
-            //apply physics to enemy bullets
             bullet.physics();
-            //only check for collisions if player is not invincible
-            if self.player.alive && self.player.invincibility_frames==0 && self.no_attack_timer==0 && bullet.collides_with(&self.player) {
-                //mark bullet for deletion
-                 bullet.alive = false;
-                //do damage
-                self.player.health -= bullet.damage;
-                self.player.invincibility_frames = PLAYER_INVINCIBILITY;
+            if player_vulnerable && bullet.collides_with(&self.player) {
+                bullet.alive = false;
+                self.player.take_damage(bullet.damage);
             }
         }
-        self.enemy_bullets.retain(|bullet| bullet.alive && !bullet.is_off_screen());
-
-        Ok(())
+        self.enemy_bullets.retain(|b| b.alive && !b.is_off_screen());
     }
-    fn handle_enemies(&mut self, _ctx: &mut Context) -> GameResult<()> {
+
+    fn handle_enemies(&mut self) {
         let num_enemies = self.enemies.len();
+        let no_attack = self.no_attack_timer > 0;
+
         for enemy in &mut self.enemies {
             enemy.physics();
-            //scale shooting chance with number of enemies
-            //more enemies = each one shoots less frequently
-            let scaled_enemy_shoot_chance = ENEMY_SHOOT_CHANCE*num_enemies*num_enemies/self.stage;
-            if self.player.alive && self.no_attack_timer==0 && self.rng.gen_range(0, scaled_enemy_shoot_chance)==0 {
-                let offset = Vector2::new(0.0, 20.0);
-                //bullets go towards player
-                let direction = self.player.position - enemy.position;
-                let dist = direction.norm();
-                //add some noise so the enemies aren't always sniping us
-                //but their accuracy goes up as they get closer
-                let accuracy = 1.0/dist/num_enemies as f32;
-                let normal_sample: f32 = self.rng.sample(StandardNormal);
-                let noise = self.player.size/2.0 * normal_sample * (1.0-accuracy) * Vector2::new(1.0,1.0);
-                let velocity = (direction + noise).normalize()*3.0;
-                self.enemy_bullets.push(Bullet::new(enemy, velocity, Some(offset), 10.0, BulletType::Proton));
+
+            // Enemy shooting
+            if self.player.alive && !no_attack {
+                let scaled_chance = ENEMY_SHOOT_CHANCE * num_enemies * num_enemies / self.stage;
+                if self.rng.gen_range(0..scaled_chance) == 0 {
+                    let direction = self.player.position - enemy.position;
+                    let dist = direction.length();
+                    let accuracy = 1.0 / dist / num_enemies as f32;
+                    let normal_sample: f32 = self.rng.sample(StandardNormal);
+                    let noise = self.player.size / 2.0 * normal_sample * (1.0 - accuracy) * Vec2::ONE;
+                    let velocity = (direction + noise).normalize() * 3.0;
+                    self.enemy_bullets.push(Bullet::new(
+                        enemy, velocity, Some(Vec2::new(0.0, 20.0)), 10.0, BulletType::Proton,
+                    ));
+                }
             }
-            //only check for collisions if player is not invincible
-            if self.player.invincibility_frames==0 && self.no_attack_timer==0 && enemy.collides_with(&self.player) {
-                self.player.health -= 20.0;
-                self.player.invincibility_frames = PLAYER_INVINCIBILITY;
+
+            // Contact damage
+            if !no_attack && self.player.is_vulnerable() && enemy.collides_with(&self.player) {
+                self.player.take_damage(PLAYER_CONTACT_DAMAGE);
             }
+
+            // Enemy death
             if enemy.health <= 0.0 {
-                //mark enemy for removal and add experience to player
                 enemy.alive = false;
-                self.player.experience += PLAYER_EXP_PER_KILL*(0.7_f32).powf(self.player.get_weapon().unwrap().get_level() as f32);
+                self.player.experience +=
+                    PLAYER_EXP_PER_KILL * 0.7_f32.powf(self.player.weapon().level() as f32);
             }
         }
-        for enemy in &self.enemies {
-            //create an explosion
-            if !enemy.alive {
-                self.explosions.push(Explosion::new(enemy.position, enemy.velocity, 64.,
-                        &mut self.animation_system, &self.animation_registry
-                ));
-            }
+
+        // Spawn explosions for dead enemies
+        let dead_enemies: Vec<_> = self.enemies.iter()
+            .filter(|e| !e.alive)
+            .map(|e| e.position)
+            .collect();
+        for pos in dead_enemies {
+            self.explosions.push(Explosion::new(
+                pos, 64.0, &mut self.animation_system, &self.animation_registry,
+            ));
         }
-        //remove any enemies that died
-        self.enemies.retain(|enemy| enemy.alive);
-        Ok(())
+
+        self.enemies.retain(|e| e.alive);
     }
-    fn handle_background(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        //spawn stars occasionally until we reach our max number of stars
-        if self.stars.len() < NUM_STARS && self.rng.gen_range(0.0, 1.0)<0.3 {
-            //position is sampled uniformly across X-axis
-            let random_position = Point2::new(self.rng.gen_range(0.0, DISPLAY_RESOLUTION.0), 0.0);
-            //generate some random numbers to calculate size, velocity, and brightness with
+
+    fn handle_background(&mut self) {
+        if self.stars.len() < NUM_STARS && self.rng.gen_range(0.0..1.0_f32) < 0.3 {
+            let x = self.rng.gen_range(0.0..DISPLAY_WIDTH);
             let normal_sample: f32 = self.rng.sample(StandardNormal);
-            let normal_sample_2: f32 = self.rng.gen_range(0.0, 1.0);
-            //these were experimentally determined biases and weights
-            let random_size = 1.0 + 0.5 * normal_sample.abs();
-            let velocity = Vector2::new(0.0, 0.3 + 0.3*normal_sample_2 + 0.3*normal_sample.abs());
-            //insert our new star into the collection
-            self.stars.push(Star::new(random_position, velocity, random_size, normal_sample_2));
+            let brightness: f32 = self.rng.gen_range(0.0..1.0);
+            let size = 1.0 + 0.5 * normal_sample.abs();
+            let speed = 0.3 + 0.3 * brightness + 0.3 * normal_sample.abs();
+            self.stars.push(Star::new(
+                Vec2::new(x, 0.0),
+                Vec2::new(0.0, speed),
+                size,
+                brightness,
+            ));
         }
-        //apply physics to existing stars
+
         for star in &mut self.stars {
-            //wrap stars around the screen
-            if star.position.y > DISPLAY_RESOLUTION.1 {
+            if star.position.y > DISPLAY_HEIGHT {
                 star.position.y = 0.0;
             }
             star.physics();
-        };
+        }
+    }
+
+    // -- Wave management ------------------------------------------------------
+
+    fn spawn_wave(&mut self) {
+        self.stage += 1;
+        self.no_attack_timer = WAVE_GRACE_PERIOD;
+
+        if self.player.health < PLAYER_MIN_HEALTH_RESTORE {
+            self.player.health = PLAYER_MIN_HEALTH_RESTORE;
+        }
+
+        for x in 0..ENEMIES_PER_ROW {
+            for y in 0..ENEMY_ROWS {
+                self.enemies.push(Enemy::new(
+                    Vec2::new(80.0 + x as f32 * 110.0, 50.0 + y as f32 * 100.0),
+                ));
+            }
+        }
+    }
+
+    fn handle_player_death(&mut self) {
+        self.status = Some("game over");
+        self.player.alive = false;
+        self.player.health = 0.0;
+        self.explosions.push(Explosion::new(
+            self.player.position, 64.0,
+            &mut self.animation_system, &self.animation_registry,
+        ));
+    }
+
+    // -- Drawing helpers ------------------------------------------------------
+
+    fn draw_hud_bar(
+        canvas: &mut Canvas,
+        ctx: &Context,
+        position: Vec2,
+        fill_fraction: f32,
+        bar_color: Color,
+        label: &str,
+    ) -> GameResult {
+        let bar_width = 3.0 * DISPLAY_WIDTH / 12.0;
+        let bar_height = DISPLAY_HEIGHT / 24.0;
+
+        let outline_rect = Rect::new(position.x, position.y, bar_width, bar_height);
+        let filled_rect = Rect::new(position.x, position.y, fill_fraction * bar_width, bar_height);
+
+        let outline_color = Color::new(bar_color.r, bar_color.g, bar_color.b, 0.8);
+        let fill_color = Color::new(bar_color.r, bar_color.g, bar_color.b, 0.3);
+
+        canvas.draw(
+            &Mesh::new_rectangle(ctx, DrawMode::stroke(2.0), outline_rect, outline_color)?,
+            DrawParam::default(),
+        );
+        canvas.draw(
+            &Mesh::new_rectangle(ctx, DrawMode::fill(), filled_rect, fill_color)?,
+            DrawParam::default(),
+        );
+
+        let text = Text::new(TextFragment::new(label));
+        canvas.draw(&text, DrawParam::default().dest(position + Vec2::new(10.0, 10.0)));
+
         Ok(())
+    }
+
+}
+
+fn queue_sprite(
+    instances: &mut InstanceArray,
+    anim_system: &SpriteAnimationSystem,
+    sheet_data: &SpriteSheetData,
+    obj: &dyn SpriteObject,
+    base_params: DrawParam,
+    dest: Vec2,
+    rotation: Option<f32>,
+    color: Option<Color>,
+) {
+    if let Some(src) = obj.get_fractional_frame(anim_system, sheet_data) {
+        let mut params = base_params.src(src).dest(dest);
+        if let Some(r) = rotation {
+            params = params.rotation(r);
+        }
+        if let Some(c) = color {
+            params = params.color(c);
+        }
+        instances.push(params);
     }
 }
 
+// =============================================================================
+// EventHandler
+// =============================================================================
+
 impl EventHandler for State {
-    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        //only print out periodically, one iteration per one frame, assuming 1fps
-        while timer::check_update_time(ctx, 1) {
-            if SHOW_FRAMERATE {
-                println!("Average FPS: {}, #Bullets: {}", timer::fps(ctx), self.bullets.len()+self.enemy_bullets.len());
-            }
-        }
-        if self.no_attack_timer>0 {
-            while timer::check_update_time(ctx, 60) && self.no_attack_timer>0 {
-                self.no_attack_timer -= 1;
-            }
+    fn update(&mut self, ctx: &mut Context) -> GameResult {
+        self.tick_count += 1;
+
+        if SHOW_FRAMERATE && self.tick_count % 60 == 0 {
+            println!(
+                "FPS: {:.0}, #Bullets: {}",
+                ctx.time.fps(),
+                self.bullets.len() + self.enemy_bullets.len()
+            );
         }
 
-        //better handle key presses and releases
-        self.handle_keys(ctx)?;
-        //apply game logic to bullets (and enemies/players who are hit)
-        self.handle_bullets(ctx)?;
-        //apply game logic to enemies
-        self.handle_enemies(ctx)?;
-        //spawn stars
-        self.handle_background(ctx)?;
+        self.no_attack_timer = self.no_attack_timer.saturating_sub(1);
 
-        //keep explosions that aren't finished
+        self.handle_keys(ctx);
+        self.handle_bullets();
+        self.handle_enemies();
+        self.handle_background();
+
+        // Expire finished explosions
         for exp in &mut self.explosions {
             if exp.poll_animation_finished(&self.animation_system) {
                 exp.finished = true;
@@ -278,222 +332,178 @@ impl EventHandler for State {
         }
         self.explosions.retain(|exp| !exp.finished);
 
-        //update animations
-        let timer_delta = timer::delta(ctx).as_millis() as f32;
-        self.animation_system.time_tick(timer_delta);
+        // Advance animations
+        self.animation_system.time_tick(ctx.time.delta().as_millis() as f32);
 
-        //handle player movement
+        // Player physics & leveling
         self.player.physics();
-        //level up
-        if self.player.experience >= 100.0 {
+        if self.player.experience >= EXP_TO_LEVEL {
             self.player.experience = 0.0;
-            self.player.get_weapon_mut().unwrap().level_up();
+            self.player.weapon_mut().level_up();
         }
 
-        //win states
-        if self.player.alive && self.enemies.len()==0 {
-            //increment stage counter
-            self.stage += 1;
-            self.no_attack_timer = 200;
-            //restore up to 25% of player health
-            if self.player.health < 25. {
-                self.player.health = 25.;
-            }
-            //generate a grid of enemies
-            for x in 0..ENEMIES.0 {
-                for y in 0..ENEMIES.1 {
-                    self.enemies.push(
-                        Enemy::new(
-                            Point2::new(80.0, 50.0) +
-                            (x as f32)*Vector2::new(110.0, 0.0) +
-                            (y as f32)*Vector2::new(0.0, 100.0)
-                        )
-                    );
-                }
-            }
+        // Wave progression
+        if self.player.alive && self.enemies.is_empty() {
+            self.spawn_wave();
         }
-        //lose states
+
+        // Death check
         if self.player.alive && self.player.health <= 0.0 {
-            self.status = Some("game over");
-            self.player.alive = false;
-            self.player.health = 0.;
-            self.explosions.push(Explosion::new(self.player.position, Vector2::new(0.,0.), 64.,
-                    &mut self.animation_system, &self.animation_registry
-            ));
+            self.handle_player_death();
         }
+
         Ok(())
     }
-    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx, graphics::BLACK);
-        let mut background_meshbuilder = MeshBuilder::new();
-        let mut hitbox_meshbuilder = MeshBuilder::new();
 
-        let halfway_point = Point2::new(0.5, 0.5);
-        let sprite_scale = Vector2::new(1., 1.);
-        let spritesheet_draw_params = DrawParam::default()
-            .offset(halfway_point)
-            .scale(sprite_scale);
+    fn draw(&mut self, ctx: &mut Context) -> GameResult {
+        let mut canvas = Canvas::from_frame(ctx, Color::BLACK);
 
-        //render player bullets
-        for bullet in &mut self.bullets {
-            let bullet_spr_info = bullet.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-            self.spritebatch_spritesheet.add(
-                spritesheet_draw_params
-                    .src(bullet_spr_info)
-                    .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .rotation(bullet.angle)
-                    //.color(player_bullet_color)
+        // In ggez 0.9, offset affects both positioning and rotation origin.
+        // Use offset(0,0) for all sprites so dest = top-left, matching ggez 0.5 SpriteBatch behavior.
+        let base_params = DrawParam::default();
+
+        // -- Background stars -------------------------------------------------
+        for star in &self.stars {
+            let dim = star.brightness * 0.8;
+            let mesh = Mesh::new_circle(
+                ctx, DrawMode::fill(), star.position, star.size, 1.0,
+                Color::new(dim, dim, dim, 1.0),
+            )?;
+            canvas.draw(&mesh, DrawParam::default());
+        }
+
+        // -- Sprites ----------------------------------------------------------
+
+        // Player bullets
+        for bullet in &self.bullets {
+            queue_sprite(
+                &mut self.spritesheet_instances, &self.animation_system, &self.spritesheet_data,
+                bullet, base_params, bullet.position(), Some(bullet.angle), None,
             );
-            //draw hitboxes for debugging
-            if SHOW_HITBOXES {
-                for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
-                    let hitbox = hitbox_visit.data;
-                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
-                }
-            }
         }
-        //render enemy bullets
-        for bullet in &mut self.enemy_bullets {
-            let bullet_spr_info = bullet.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-            self.spritebatch_spritesheet.add(
-                spritesheet_draw_params
-                    .src(bullet_spr_info)
-                    .dest(bullet.position + Vector2::new(bullet.size/2.0, bullet.size/2.0))
-                    .rotation(bullet.angle)
-                    //.color(enemy_bullet_color)
+
+        // Enemy bullets
+        for bullet in &self.enemy_bullets {
+            queue_sprite(
+                &mut self.spritesheet_instances, &self.animation_system, &self.spritesheet_data,
+                bullet, base_params, bullet.position(), Some(bullet.angle), None,
             );
-            //draw hitboxes for debugging
-            if SHOW_HITBOXES {
-                for hitbox_visit in bullet.hitbox_tree.bfs_iter() {
-                    let hitbox = hitbox_visit.data;
-                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
-                }
-            }
         }
 
-        //render enemies
-        for enemy in &mut self.enemies {
-            let enemy_spr_info = enemy.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-            let mut enemy_draw_param = spritesheet_draw_params
-                .src(enemy_spr_info)
-                .dest(enemy.position + Vector2::new(enemy.size/2.0, enemy.size/2.0));
-            if enemy.flash_frames>0 {
-                //flash enemies when hit
-                enemy_draw_param = enemy_draw_param.color(Color::new(3.0, 0.8, 0.8, 1.0));
-            }
-            self.spritebatch_spritesheet.add(enemy_draw_param);
-            //draw hitboxes for debugging
-            if SHOW_HITBOXES {
-                for hitbox_visit in enemy.hitbox_tree.bfs_iter() {
-                    let hitbox = hitbox_visit.data;
-                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
-                }
-            }
+        // Enemies
+        for enemy in &self.enemies {
+            let color = if enemy.flash_frames > 0 {
+                Some(Color::new(3.0, 0.8, 0.8, 1.0))
+            } else {
+                None
+            };
+            queue_sprite(
+                &mut self.spritesheet_instances, &self.animation_system, &self.spritesheet_data,
+                enemy, base_params, enemy.position(), None, color,
+            );
         }
 
-        //render explosions
-        for exp in &mut self.explosions {
-            let exp_sprite_info = exp.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-            let mut exp_draw_params = spritesheet_draw_params
-                .src(exp_sprite_info)
-                .dest(exp.position + Vector2::new(exp.size/2.0, exp.size/2.0));
-
-            self.spritebatch_spritesheet.add(exp_draw_params);
+        // Explosions
+        for exp in &self.explosions {
+            queue_sprite(
+                &mut self.spritesheet_instances, &self.animation_system, &self.spritesheet_data,
+                exp, base_params, exp.position(), None, None,
+            );
         }
 
-        //render player
+        // Player
         if self.player.alive {
-            let player_spr_info = self.player.get_fractional_frame(&self.animation_system, &self.spritesheet_data).unwrap();
-            let mut player_draw_param = spritesheet_draw_params
-                .src(player_spr_info)
-                .dest(self.player.position + Vector2::new(self.player.size/2.0, self.player.size/2.0));
-            let flash_player_when_invincible = self.player.invincibility_frames>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
-            let flash_player_no_attack_allowed = self.no_attack_timer>0 && timer::ticks(ctx)/(PLAYER_INVINCIBILITY as usize/10)%2==0;
-            if flash_player_when_invincible || flash_player_no_attack_allowed {
-                //flash player when invincible
-                player_draw_param = player_draw_param.color(Color::new(1.0, 1.0, 1.0, 0.1));
-            }
-            self.spritebatch_spritesheet.add(player_draw_param);
-            //draw hitboxes for debugging
-            if SHOW_HITBOXES {
-                for hitbox_visit in self.player.hitbox_tree.bfs_iter() {
-                    let hitbox = hitbox_visit.data;
-                    let rect = Rect::new(hitbox.point.x, hitbox.point.y, hitbox.size.x, hitbox.size.y);
-                    hitbox_meshbuilder.rectangle(DrawMode::fill(), rect, Color::from(HITBOX_COLOR));
+            let flash_period = PLAYER_INVINCIBILITY_FRAMES as usize / 10;
+            let flashing = (self.player.invincibility_frames > 0 || self.no_attack_timer > 0)
+                && self.tick_count / flash_period % 2 == 0;
+            let color = if flashing {
+                Some(Color::new(1.0, 1.0, 1.0, 0.1))
+            } else {
+                None
+            };
+            let player_pos = self.player.position();
+            let player_frame = self.player.get_fractional_frame(&self.animation_system, &self.spritesheet_data);
+            if let Some(src) = player_frame {
+                let mut params = base_params.src(src).dest(player_pos);
+                if let Some(c) = color {
+                    params = params.color(c);
                 }
+                self.spritesheet_instances.push(params);
             }
         }
 
-        //build background layer
-        for star in &mut self.stars {
-            let dim = star.brightness*0.8;
-            background_meshbuilder.circle(DrawMode::fill(), star.position, star.size, 1.0, Color::new(dim, dim, dim, 1.0));
-        }
+        canvas.draw(&self.spritesheet_instances, DrawParam::default());
+        self.spritesheet_instances.clear();
 
-        //draw all accumulated meshes
-        if let Ok(mesh) = background_meshbuilder.build(ctx) {
-            graphics::draw(ctx, &mesh, DrawParam::default())?;
-        }
-        //draw sprites, clear spritebatches
-        graphics::draw(ctx, &self.spritebatch_spritesheet, DrawParam::default())?;
-        self.spritebatch_spritesheet.clear();
-        //draw hitboxes, if enabled
+        // -- Debug hitboxes ---------------------------------------------------
         if SHOW_HITBOXES {
-            if let Ok(mesh) = hitbox_meshbuilder.build(ctx) {
-                graphics::draw(ctx, &mesh, DrawParam::default())?;
-            }
+            let hitbox_color = Color::from(HITBOX_COLOR);
+            let mut draw_hitboxes = |tree: &crate::hitbox::HitboxTree| -> GameResult {
+                for hb in tree.bfs_iter() {
+                    let rect = Rect::new(hb.point.x, hb.point.y, hb.size.x, hb.size.y);
+                    let mesh = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, hitbox_color)?;
+                    canvas.draw(&mesh, DrawParam::default());
+                }
+                Ok(())
+            };
+            for b in &self.bullets { draw_hitboxes(&b.hitbox_tree)?; }
+            for b in &self.enemy_bullets { draw_hitboxes(&b.hitbox_tree)?; }
+            for e in &self.enemies { draw_hitboxes(&e.hitbox_tree)?; }
+            if self.player.alive { draw_hitboxes(&self.player.hitbox_tree)?; }
         }
 
-        //player hud
-        //health
-        //divide resolution by 12.0 or 24.0 and use as units with 10px as padding on edges
-        let hud_health_position = Point2::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
-        let hud_health_outline_rect = Rect::new(hud_health_position.x, hud_health_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_health_rect = Rect::new(10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.health/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_health_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(2.0), hud_health_outline_rect, Color::new(1.0, 0.0, 0.0, 0.8))?;
-        let hud_health_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_health_rect, Color::new(1.0, 0.0, 0.0, 0.3))?;
-        graphics::draw(ctx, &hud_health_outline, DrawParam::default())?;
-        graphics::draw(ctx, &hud_health_filled, DrawParam::default())?;
-        //experience
-        //divide resolution by 12.0 or 24.0 and use as units with 10px as padding on edges
-        let hud_exp_position = Point2::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0);
-        let hud_exp_outline_rect = Rect::new(hud_exp_position.x, hud_exp_position.y, 3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_exp_rect = Rect::new(9.0*DISPLAY_RESOLUTION.0/12.0-10.0, 23.0*DISPLAY_RESOLUTION.1/24.0-10.0, self.player.experience/100.0*3.0*DISPLAY_RESOLUTION.0/12.0, DISPLAY_RESOLUTION.1/24.0);
-        let hud_exp_outline = Mesh::new_rectangle(ctx, DrawMode::stroke(2.0), hud_exp_outline_rect, Color::new(0.0, 1.0, 0.0, 0.8))?;
-        let hud_exp_filled = Mesh::new_rectangle(ctx, DrawMode::fill(), hud_exp_rect, Color::new(0.0, 1.0, 0.0, 0.3))?;
-        graphics::draw(ctx, &hud_exp_outline, DrawParam::default())?;
-        graphics::draw(ctx, &hud_exp_filled, DrawParam::default())?;
+        // -- HUD --------------------------------------------------------------
+        let hud_y = 23.0 * DISPLAY_HEIGHT / 24.0 - 10.0;
+        let health_pos = Vec2::new(10.0, hud_y);
+        let exp_pos = Vec2::new(9.0 * DISPLAY_WIDTH / 12.0 - 10.0, hud_y);
 
-        //health information
-        let health_text = Text::new(TextFragment::new(format!("health: {}/100",self.player.health)));
-        graphics::draw(ctx, &health_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, hud_health_position.y+10.0)))?;
-        //weapon information
-        let weapon_text = Text::new(TextFragment::new(self.player.get_weapon().unwrap().get_info()));
-        graphics::draw(ctx, &weapon_text, DrawParam::default().dest(Point2::new(hud_exp_position.x+10.0, hud_exp_position.y+10.0)))?;
-        //current stage
-        let stage_text_display = if self.no_attack_timer>0 {
+        Self::draw_hud_bar(
+            &mut canvas, ctx, health_pos,
+            self.player.health / PLAYER_MAX_HEALTH,
+            Color::RED,
+            &format!("health: {}/{}", self.player.health, PLAYER_MAX_HEALTH),
+        )?;
+        Self::draw_hud_bar(
+            &mut canvas, ctx, exp_pos,
+            self.player.experience / EXP_TO_LEVEL,
+            Color::GREEN,
+            &self.player.weapon().info(),
+        )?;
+
+        // Stage counter / wave timer
+        let stage_label = if self.no_attack_timer > 0 {
             format!("timer: {}", self.no_attack_timer)
         } else {
-            format!("stage: {}",self.stage)
+            format!("stage: {}", self.stage)
         };
-        let stage_text = Text::new(TextFragment::new(stage_text_display));
-        graphics::draw(ctx, &stage_text, DrawParam::default().dest(Point2::new(hud_health_position.x+10.0, 10.0)))?;
-        //status text
-        if let Some(status_text) = self.status {
-            let text = Text::new(TextFragment::new(status_text));
-            graphics::draw(ctx, &text, DrawParam::default().dest(Point2::new(DISPLAY_RESOLUTION.0/2.0-50.0, DISPLAY_RESOLUTION.1/2.0)))?;
+        canvas.draw(
+            &Text::new(TextFragment::new(stage_label)),
+            DrawParam::default().dest(Vec2::new(20.0, 10.0)),
+        );
+
+        // Game-over text
+        if let Some(status) = self.status {
+            canvas.draw(
+                &Text::new(TextFragment::new(status)),
+                DrawParam::default().dest(Vec2::new(DISPLAY_WIDTH / 2.0 - 50.0, DISPLAY_HEIGHT / 2.0)),
+            );
         }
-        //end
-        graphics::present(ctx)?;
+
+        canvas.finish(ctx)?;
         Ok(())
     }
-    fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymod: KeyMods) {
-        self.keys.remove(&keycode);
+
+    fn key_up_event(&mut self, _ctx: &mut Context, input: KeyInput) -> Result<(), GameError> {
+        if let Some(keycode) = input.keycode {
+            self.keys.remove(&keycode);
+        }
+        Ok(())
     }
-    fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymod: KeyMods, _repeat: bool) {
-        self.keys.insert(keycode);
+
+    fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> Result<(), GameError> {
+        if let Some(keycode) = input.keycode {
+            self.keys.insert(keycode);
+        }
+        Ok(())
     }
 }
